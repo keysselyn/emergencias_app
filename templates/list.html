@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-2">
+  <h5 class="mb-0">Registros</h5>
+  <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#filters">
+    <i class="bi bi-funnel"></i> Filtros
+  </button>
+</div>
+
+<div class="mb-2">
+  <a class="btn btn-success btn-sm"
+     href="/exportar_csv?hospital={{ request.args.get('hospital','') }}&desde={{ request.args.get('desde','') }}&hasta={{ request.args.get('hasta','') }}">
+     <i class="bi bi-filetype-csv"></i> Exportar CSV
+  </a>
+</div>
+
+<div class="mb-2">
+  <a class="btn btn-success btn-sm"
+     href="/exportar_excel?hospital={{ request.args.get('hospital','') }}&desde={{ request.args.get('desde','') }}&hasta={{ request.args.get('hasta','') }}">
+     <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+  </a>
+</div>
+
+<!-- Tarjetas móviles -->
+<div class="mobile-list">
+  {% for r in registros %}
+    <div class="mcard">
+      <div class="mrow"><span class="mkey">Fecha</span><span class="mval">{{ r.fecha.strftime('%Y-%m-%d') }}</span></div>
+      <div class="mrow"><span class="mkey">Hospital</span><span class="mval">{{ r.hospital }}</span></div>
+      <div class="mrow"><span class="mkey">Atenciones</span><span class="mval">{{ r.atenciones }}</span></div>
+      <div class="mrow"><span class="mkey">Ingresos</span><span class="mval">{{ r.ingresos }}</span></div>
+      <div class="mrow"><span class="mkey">Traslados</span><span class="mval">{{ r.traslados }}</span></div>
+      <div class="mt-2 d-flex justify-content-end">
+        <a href="/editar/{{ r.id }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-pencil-square"></i> Editar
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <div class="text-center text-muted">Sin registros</div>
+  {% endfor %}
+</div>
+
+<!-- Tabla (solo se muestra en pantallas grandes gracias al CSS) -->
+<div class="table-responsive">
+  <table class="table table-striped table-hover align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>Fecha</th><th>Hospital</th><th>Atenciones</th><th>Ingresos</th><th>Alta Voluntario</th>
+        <th>Traslados</th><th>Motivo traslado</th><th>Hospital referencia</th><th>Defunciones</th><th>Eventualidades</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in registros %}
+      <tr>
+        <td>{{ r.fecha.strftime('%Y-%m-%d') }}</td>
+        <td>{{ r.hospital }}</td>
+        <td>{{ r.atenciones }}</td>
+        <td>{{ r.ingresos }}</td>
+        <td>{{ r.alta_voluntario }}</td>
+        <td>{{ r.traslados }}</td>
+        <td>{{ r.motivo_traslado or '' }}</td>
+        <td>{{ r.hospital_referencia or '' }}</td>
+        <td>{{ r.defunciones }}</td>
+        <td style="max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.eventualidades or '' }}">
+          {{ r.eventualidades or '' }}
+        </td>
+        <td><a href="/editar/{{ r.id }}" class="btn btn-sm btn-outline-primary">Editar</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Offcanvas filtros -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="filters">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Filtros</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="get" class="vstack gap-3">
+      {% if current_user.is_admin %}
+      <div>
+        <label class="form-label">Hospital</label>
+        <select name="hospital" class="form-select">
+          <option value="">Todos</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}" {% if request.args.get('hospital','') == h.nombre %}selected{% endif %}>{{ h.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div>
+        <label class="form-label">Desde</label>
+        <input type="date" name="desde" class="form-control" value="{{ request.args.get('desde','') }}">
+      </div>
+      <div>
+        <label class="form-label">Hasta</label>
+        <input type="date" name="hasta" class="form-control" value="{{ request.args.get('hasta','') }}">
+      </div>
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary"><i class="bi bi-funnel"></i> Aplicar</button>
+        <a class="btn btn-outline-secondary" href="/listar">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

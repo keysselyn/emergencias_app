@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-2">
+  <h5 class="mb-0">Hospitales</h5>
+  <a class="btn btn-primary btn-sm" href="/hospitales/nuevo"><i class="bi bi-plus-lg"></i> Nuevo</a>
+</div>
+
+<div class="row g-2">
+  {% for h in hospitales %}
+  <div class="col-12">
+    <div class="card p-2">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="fw-semibold">{{ h.nombre }}</div>
+          <small class="text-muted">ID {{ h.id }} · {{ 'Activo' if h.activo else 'Inactivo' }}</small>
+        </div>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-primary btn-sm" href="/hospitales/editar/{{ h.id }}"><i class="bi bi-pencil-square"></i></a>
+          <form method="post" action="/hospitales/eliminar/{{ h.id }}" onsubmit="return confirm('¿Desactivar este hospital?');">
+            <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-x-lg"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center text-muted">Sin hospitales</div>
+  {% endfor %}
+</div>
+{% endblock %}

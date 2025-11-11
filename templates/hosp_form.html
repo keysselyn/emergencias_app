@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<form method="post" class="card p-3">
+  <h5 class="mb-3">{{ 'Editar hospital' if h else 'Nuevo hospital' }}</h5>
+  <div class="mb-3">
+    <label class="form-label">Nombre</label>
+    <input type="text" name="nombre" class="form-control" required value="{{ h.nombre if h else '' }}">
+  </div>
+  {% if h %}
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="activo" id="activo" {% if h.activo %}checked{% endif %}>
+    <label class="form-check-label" for="activo">Activo</label>
+  </div>
+  {% endif %}
+  <div class="d-grid gap-2">
+    <button class="btn btn-primary" type="submit">{{ 'Actualizar' if h else 'Crear' }}</button>
+    <a class="btn btn-outline-secondary" href="/hospitales">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

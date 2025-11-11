@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-3 mb-3">
+  <div class="d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">Dashboard – {{ sel_hospital }}</h5>
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#dfilters">
+      <i class="bi bi-sliders"></i>
+    </button>
+  </div>
+
+  <div class="row g-2 mt-2">
+    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Atenciones <strong class="ms-auto">{{ kpi_atenciones }}</strong></div></div>
+    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Ingresos   <strong class="ms-auto">{{ kpi_ingresos }}</strong></div></div>
+    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Traslados  <strong class="ms-auto">{{ kpi_traslados }}</strong></div></div>
+    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Defunc.    <strong class="ms-auto">{{ kpi_defunciones }}</strong></div></div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">Tendencia</h6>
+    <div style="height: 320px;">
+      <canvas id="lineChart"></canvas>
+    </div>
+  </div>
+</div>
+
+{% if current_user.is_admin and not f_hospital and ranking %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">Top hospitales por atenciones</h6>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>#</th><th>Hospital</th><th>Atenciones</th></tr></thead>
+        <tbody>
+          {% for row in ranking %}
+          <tr><td>{{ loop.index }}</td><td>{{ row.hospital }}</td><td>{{ row.atenciones }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Offcanvas filtros -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="dfilters">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Filtros</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form class="vstack gap-3" method="get">
+      {% if current_user.is_admin %}
+      <div>
+        <label class="form-label">Hospital</label>
+        <select name="hospital" class="form-select">
+          <option value="">Todos</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}" {% if f_hospital == h.nombre %}selected{% endif %}>{{ h.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div>
+        <label class="form-label">Desde</label>
+        <input type="date" name="desde" class="form-control" value="{{ f_desde }}">
+      </div>
+      <div>
+        <label class="form-label">Hasta</label>
+        <input type="date" name="hasta" class="form-control" value="{{ f_hasta }}">
+      </div>
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary"><i class="bi bi-sliders"></i> Aplicar</button>
+        <a class="btn btn-outline-secondary" href="/dashboard">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const labels = {{ labels | safe }};
+const dataAt = {{ data_atenciones | safe }};
+const dataIn = {{ data_ingresos   | safe }};
+const dataTr = {{ data_traslados  | safe }};
+const dataDf = {{ data_defunciones| safe }};
+
+new Chart(document.getElementById('lineChart').getContext('2d'), {
+  type: 'line',
+  data: { labels, datasets: [
+    { label: 'Atenciones', data: dataAt },
+    { label: 'Ingresos',   data: dataIn },
+    { label: 'Traslados',  data: dataTr },
+    { label: 'Defunciones',data: dataDf },
+  ]},
+  options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, elements: { line: { tension: .25 } } }
+});
+</script>
+{% endblock %}

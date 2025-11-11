@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<form method="post" class="card p-3">
+  <h5 class="mb-2"><i class="bi bi-journal-plus"></i> {{ 'Nuevo registro' }}</h5>
+  <div class="form-section-title">Datos básicos</div>
+  <div class="row g-3">
+    <div class="col-6">
+      <label class="form-label">Fecha</label>
+      <input type="date" name="fecha" class="form-control" required>
+    </div>
+
+    {% if current_user.is_admin %}
+    <div class="col-12">
+      <label class="form-label">Hospital</label>
+      <select name="hospital" class="form-select" required>
+        <option value="">Seleccione...</option>
+        {% for h in HOSPITALES %}
+          <option value="{{ h.nombre }}">{{ h.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="col-12">
+      <label class="form-label">Hospital</label>
+      <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
+      <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+    </div>
+    {% endif %}
+
+    <div class="col-6"><label class="form-label">Atenciones</label><input type="number" min="0" name="atenciones" class="form-control" value="0"></div>
+    <div class="col-6"><label class="form-label">Ingresos</label><input type="number" min="0" name="ingresos" class="form-control" value="0"></div>
+    <div class="col-6"><label class="form-label">Alta Voluntario</label><input type="number" min="0" name="alta_voluntario" class="form-control" value="0"></div>
+    <div class="col-6"><label class="form-label">Traslados</label><input type="number" min="0" name="traslados" class="form-control" value="0"></div>
+
+    <div class="col-12"><label class="form-label">Motivo del traslado</label><input type="text" name="motivo_traslado" class="form-control"></div>
+    <div class="col-12"><label class="form-label">Hospital de referencia</label><input type="text" name="hospital_referencia" class="form-control"></div>
+
+    <div class="col-6"><label class="form-label">Defunciones</label><input type="number" min="0" name="defunciones" class="form-control" value="0"></div>
+    <div class="col-12"><label class="form-label">Eventualidades</label><textarea name="eventualidades" class="form-control" rows="3" placeholder="Notas, eventualidades..."></textarea></div>
+  </div>
+
+  <div class="sticky-actions mt-3">
+    <div class="d-grid gap-2">
+      <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a href="/listar" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
