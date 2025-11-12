@@ -1,30 +1,39 @@
-import os
-
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, Response,
-    send_from_directory
+    send_from_directory, abort
 )
 from flask_login import (
     LoginManager, login_user, logout_user, current_user, login_required
 )
 from datetime import datetime
-from io import StringIO
+from io import StringIO, BytesIO
 from functools import wraps
-import csv, json
+import csv, json, os
 from dateutil import parser
 
-from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, NamedStyle
 from openpyxl.utils import get_column_letter
 
 from models import db, EmergencyRecord, User, Hospital
 
-# -------------------- Configuración base --------------------
+# -------------------- Configuración base (PostgreSQL/Render) --------------------
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///emergencias.db'
+
+# DATABASE_URL vendrá de Render (PostgreSQL). Si no está, usa SQLite local.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///emergencias.db")
+
+# Render puede dar postgres://  → SQLAlchemy requiere postgresql+psycopg2://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://") and "+psycopg2" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'cambia-esta-clave'  # cámbiala en producción
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'cambia-esta-clave')  # cámbiala en producción
+# Robustez de conexión para Postgres en PaaS
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 
 db.init_app(app)
 
@@ -59,8 +68,84 @@ def inject_choices():
     return dict(HOSPITALES=hospitales)
 
 
-with app.app_context():
-    db.create_all()
+# -------------------- BOOTSTRAP automático (opcional) --------------------
+def _seed_hospitals():
+    HOSPITALES_BASE = [
+        "Hospital Regional Juan Pablo Pina",
+        "Hospital Provincial Dr. Rafael j Mañón",
+        "Hospital Provincial Nuestra señora de regla",
+        "Hospital Municpal Villa Fundacion",
+        "Hospital Municipal Barsequillo",
+        "Hospital Municipal Maria Paniagua",
+        "Hospital Municipal Tomasina Valdez",
+        "Hospital Municipal Nizao",
+        "Hospital  Municipal Cambita pueblo",
+        "Hospital Municipal Cambita Garabitos",
+        "Hospital Municipal de Yaguate",
+        "Hospital Municipal Villa Altagracia",
+        "Hospital Nustra Señora de Altagracia",
+        "Hospital Municipal Dr.Guarionex ALcantara",
+        "Hospital Provincial San José de Ocoa",
+        "Hospital Municipal los Cacaos",
+    ]
+    creados = 0
+    for nombre in HOSPITALES_BASE:
+        if not Hospital.query.filter_by(nombre=nombre).first():
+            db.session.add(Hospital(nombre=nombre, activo=True))
+            creados += 1
+    db.session.commit()
+    print(f"[BOOTSTRAP] Hospitales OK (nuevos: {creados})")
+
+
+def bootstrap_if_empty():
+    """Crea tablas y un admin si la DB está vacía (controlado por BOOTSTRAP_ON_START=1)."""
+    with app.app_context():
+        db.create_all()
+        total = User.query.count()
+        print(f"[BOOTSTRAP] Usuarios existentes: {total}")
+        if total == 0:
+            _seed_hospitals()
+            admin_user = os.getenv("ADMIN_USER", "admin")
+            admin_pass = os.getenv("ADMIN_PASS", "Admin123*")
+            admin_hosp = os.getenv("ADMIN_HOSPITAL", "Hospital Municipal los Cacaos")
+
+            # Validar hospital
+            ok = Hospital.query.filter_by(nombre=admin_hosp, activo=True).first()
+            if not ok:
+                # Si por algún motivo no está, toma cualquiera activo
+                any_h = Hospital.query.filter_by(activo=True).first()
+                admin_hosp = any_h.nombre if any_h else "Hospital Municipal los Cacaos"
+
+            u = User(username=admin_user, hospital=admin_hosp, is_admin=True)
+            u.set_password(admin_pass)
+            db.session.add(u)
+            db.session.commit()
+            print(f"[BOOTSTRAP] Admin creado: {admin_user} / hospital={admin_hosp}")
+        else:
+            print("[BOOTSTRAP] Ya hay usuarios. No se crea admin nuevo.")
+
+
+# Ejecutar bootstrap en arranque si BOOTSTRAP_ON_START=1
+if os.getenv("BOOTSTRAP_ON_START", "0") == "1":
+    try:
+        bootstrap_if_empty()
+    except Exception as e:
+        print(f"[BOOTSTRAP] Error: {e}")
+
+
+# Ruta manual opcional (por token) para forzar bootstrap 1 sola vez
+@app.route('/admin/bootstrap')
+def admin_bootstrap():
+    token = request.args.get('token', '')
+    expected = os.getenv("SETUP_TOKEN", "")
+    if not expected or token != expected:
+        return abort(403)
+    try:
+        bootstrap_if_empty()
+        return "Bootstrap ejecutado", 200
+    except Exception as e:
+        return f"Error: {e}", 500
+
 
 # -------------------- Páginas base --------------------
 @app.route('/')
@@ -190,7 +275,7 @@ def editar(rec_id):
     return render_template('edit.html', rec=rec)
 
 
-# -------------------- Listar + Filtros + Exportar --------------------
+# -------------------- Listar + Filtros --------------------
 @app.route('/listar')
 @login_required
 def listar():
@@ -225,6 +310,7 @@ def listar():
     return render_template('list.html', registros=registros)
 
 
+# -------------------- Exportar CSV --------------------
 @app.route('/exportar_csv')
 @login_required
 def exportar_csv():
@@ -273,18 +359,11 @@ def exportar_csv():
     )
 
 
-# -------------------- Exportar Excel --------------------
-
-
+# -------------------- Exportar Excel (con formato) --------------------
 @app.route('/exportar_excel')
 @login_required
 def exportar_excel():
-    from io import BytesIO
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, NamedStyle
-    from openpyxl.utils import get_column_letter
-
-    # === 1) Filtros (mismo criterio que en CSV y Listar) ===
+    # === 1) Filtros (igual que en listar/CSV) ===
     f_hospital = (request.args.get('hospital') or '').strip()
     f_desde = request.args.get('desde') or ''
     f_hasta = request.args.get('hasta') or ''
@@ -303,11 +382,9 @@ def exportar_excel():
         d_desde, d_hasta = d_hasta, d_desde
         f_desde, f_hasta = (d_desde.isoformat() if d_desde else ''), (d_hasta.isoformat() if d_hasta else '')
 
-    # Query base
     q = EmergencyRecord.query
     motivo_vacio = []
 
-    # Rol/hospital
     if not current_user.is_admin:
         q = q.filter(EmergencyRecord.hospital == current_user.hospital)
         motivo_vacio.append(f"Rol usuario restringe a hospital '{current_user.hospital}'")
@@ -316,7 +393,6 @@ def exportar_excel():
             q = q.filter(EmergencyRecord.hospital == f_hospital)
             motivo_vacio.append(f"Filtro hospital '{f_hospital}'")
 
-    # Fechas (inclusive)
     if d_desde:
         q = q.filter(EmergencyRecord.fecha >= d_desde)
         motivo_vacio.append(f"Desde {d_desde.isoformat()}")
@@ -326,13 +402,9 @@ def exportar_excel():
 
     registros = q.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
 
-    print(f"[EXPORT-EXCEL] filtros -> hospital='{f_hospital}' | desde='{f_desde}' | hasta='{f_hasta}' | admin={current_user.is_admin}")
-    print(f"[EXPORT-EXCEL] registros encontrados: {len(registros)}")
-
     # Salvavidas: si no hay datos y había filtros de fecha, reintenta sin fechas
     reintento_sin_fechas = False
     if len(registros) == 0 and (d_desde or d_hasta):
-        print("[EXPORT-EXCEL] Sin resultados con fechas; reintentando sin filtros de fecha…")
         q2 = EmergencyRecord.query
         if not current_user.is_admin:
             q2 = q2.filter(EmergencyRecord.hospital == current_user.hospital)
@@ -341,9 +413,8 @@ def exportar_excel():
                 q2 = q2.filter(EmergencyRecord.hospital == f_hospital)
         registros = q2.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
         reintento_sin_fechas = True
-        print(f"[EXPORT-EXCEL] reintento sin fechas -> {len(registros)} registros")
 
-    # === 2) Crear workbook con estilos ===
+    # === 2) Workbook con estilos ===
     wb = Workbook()
     ws = wb.active
     ws.title = "Registros"
@@ -373,14 +444,13 @@ def exportar_excel():
     text_wrap = NamedStyle(name="text_wrap")
     text_wrap.alignment = Alignment(wrap_text=True, vertical="top")
 
-    # Registrar estilos (maneja versiones openpyxl)
     for st in (number_right, date_center, text_wrap):
         try:
             wb.add_named_style(st)
         except Exception:
             pass
 
-    # Encabezados
+    # Encabezado
     for col_idx in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col_idx)
         cell.fill = header_fill
@@ -388,11 +458,11 @@ def exportar_excel():
         cell.alignment = header_align
         cell.border = border_all
 
-    # === 3) Datos ===
+    # Datos
     row_start = 2
     for r in registros:
         ws.append([
-            r.fecha,                        # tipo date -> se aplica estilo abajo
+            r.fecha,
             r.hospital,
             r.atenciones,
             r.ingresos,
@@ -404,7 +474,6 @@ def exportar_excel():
             (r.eventualidades or "").replace("\r", " ")
         ])
 
-    # Formatos y bordes
     COL_FECHA = 1
     COL_NUMS = [3,4,5,6,9]
     COL_TEXT_WRAP = [7,8,10]
@@ -426,19 +495,19 @@ def exportar_excel():
         ws.cell(row=total_row, column=1).font = Font(bold=True)
         ws.cell(row=total_row, column=1).alignment = Alignment(horizontal="right")
 
-        from openpyxl.utils import get_column_letter
         for c in COL_NUMS:
             col_letter = get_column_letter(c)
-            ws.cell(row=total_row, column=c, value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})").style = "number_right"
+            ws.cell(row=total_row, column=c,
+                    value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})").style = "number_right"
         for c in range(1, len(headers) + 1):
             cell = ws.cell(row=total_row, column=c)
             cell.border = border_all
             if c in COL_NUMS or c == 1:
                 cell.fill = PatternFill("solid", fgColor="E9F2FF")
 
-        last_row = total_row  # para autofiltro
+        last_row = total_row
 
-    # Anchos
+    # Ajustes UX
     widths = {1:12, 2:38, 3:12, 4:12, 5:16, 6:12, 7:28, 8:28, 9:12, 10:50}
     for c, w in widths.items():
         ws.column_dimensions[get_column_letter(c)].width = w
@@ -446,7 +515,7 @@ def exportar_excel():
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{last_row}"
 
-    # === 4) Hoja Resumen con info de filtros y motivos ===
+    # Hoja resumen
     summary = wb.create_sheet("Resumen", 0)
     summary["A1"] = "Exportación de Registros de Emergencias"
     summary["A1"].font = Font(size=14, bold=True)
@@ -463,7 +532,6 @@ def exportar_excel():
     summary["A7"] = "Registros exportados:"
     summary["B7"] = len(registros)
 
-    # Motivo vacío / reintento
     summary["A9"] = "Notas:"
     notes = []
     if reintento_sin_fechas:
@@ -472,14 +540,12 @@ def exportar_excel():
         notes.append("Filtros aplicados: " + "; ".join(motivo_vacio))
     summary["B9"] = "\n".join(notes) if notes else "—"
 
-    # Estética
     summary.column_dimensions["A"].width = 20
     summary.column_dimensions["B"].width = 60
     for r in range(1, 11):
         for c in range(1, 3):
             summary.cell(row=r, column=c).alignment = Alignment(vertical="top")
 
-    # === 5) Enviar archivo ===
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
@@ -529,7 +595,7 @@ def dashboard():
     kpi_traslados  = sum(r.traslados for r in registros)
     kpi_defunciones= sum(r.defunciones for r in registros)
 
-    # Serie (por fecha)
+    # Serie por fecha
     series = {}
     for r in registros:
         key = r.fecha.isoformat()
@@ -647,13 +713,11 @@ def hospitales_eliminar(h_id):
 # -------------------- Rutas PWA --------------------
 @app.route('/manifest.webmanifest')
 def manifest():
-    # Debe servirse desde raíz
     return send_from_directory('static', 'manifest.webmanifest', mimetype='application/manifest+json')
 
 
 @app.route('/sw.js')
 def sw():
-    # Service Worker debe servirse desde raíz para controlar todo el scope
     return send_from_directory('static', 'sw.js', mimetype='application/javascript')
 
 
@@ -664,4 +728,5 @@ def offline():
 
 # -------------------- Main --------------------
 if __name__ == '__main__':
+    # En local: debug. En Render usas gunicorn.
     app.run(debug=True)
