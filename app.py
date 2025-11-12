@@ -21,7 +21,7 @@ from models import db, EmergencyRecord, User, Hospital
 app = Flask(__name__)
 
 # DATABASE_URL vendrá de Render (PostgreSQL). Si no está, usa SQLite local.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///emergencias.db")
+DATABASE_URL = os.getenv("postgresql://keysselyn:QuawyT8f4rM5ENUKRVzuNDRBD0beKTQX@dpg-d49t6p1e2q1c73drev40-a.oregon-postgres.render.com/data_emergencias", "sqlite:///emergencias.db")
 
 # Render puede dar postgres://  → SQLAlchemy requiere postgresql+psycopg2://
 if DATABASE_URL.startswith("postgres://"):
