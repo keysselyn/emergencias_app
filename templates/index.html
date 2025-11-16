@@ -1,26 +1,146 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card p-3 mb-3">
-  <h5 class="card-title mb-1">Registro Diario</h5>
-  <div class="text-muted">Salas de Emergencias – Red Valdesia</div>
-  <div class="mt-3 d-flex gap-2">
+
+<!-- Tarjeta principal -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center mb-2">
+      <div class="me-3 rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+        <i class="bi bi-calendar2-week text-primary fs-3"></i>
+      </div>
+      <div>
+        <h5 class="card-title mb-0">Registro diario de emergencias</h5>
+        <small class="text-muted">Red SRS Valdesia – Salas de Emergencias</small>
+      </div>
+    </div>
+
     {% if current_user.is_authenticated %}
-      <a class="btn btn-primary" href="/nuevo"><i class="bi bi-plus-lg"></i> Nuevo</a>
-      <a class="btn btn-outline-primary" href="/listar"><i class="bi bi-journal-text"></i> Ver registros</a>
+      <p class="mb-3 text-muted">
+        Hola, <strong>{{ current_user.username }}</strong>. Desde aquí puedes registrar, consultar y analizar las atenciones de emergencia de tu hospital.
+      </p>
+
+      <!-- Acciones principales -->
+      <div class="d-grid gap-2 mb-3">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('nuevo') }}">
+          <i class="bi bi-plus-lg me-2"></i> Nuevo registro del día
+        </a>
+        <a class="btn btn-outline-primary" href="{{ url_for('listar') }}">
+          <i class="bi bi-journal-text me-2"></i> Ver / editar registros
+        </a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">
+          <i class="bi bi-graph-up-arrow me-2"></i> Ver dashboard
+        </a>
+      </div>
+
+      <!-- Exportaciones -->
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <a class="btn btn-sm btn-outline-success"
+           href="{{ url_for('exportar_excel') }}">
+          <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
+        </a>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('exportar_csv') }}">
+          <i class="bi bi-filetype-csv me-1"></i> Exportar CSV
+        </a>
+      </div>
+
+      <!-- Botón de instalar PWA (lo controla tu script with beforeinstallprompt) -->
+      <button id="btnInstall"
+              class="btn btn-sm btn-outline-primary mt-1"
+              style="display:none;">
+        <i class="bi bi-phone me-1"></i> Instalar app en este dispositivo
+      </button>
+
     {% else %}
-      <a class="btn btn-primary" href="/login"><i class="bi bi-box-arrow-in-right"></i> Ingresar</a>
+      <p class="mb-3 text-muted">
+        Este sistema permite registrar, consolidar y analizar el flujo diario de pacientes atendidos en las salas de emergencias de los hospitales de la Red SRS Valdesia.
+      </p>
+      <div class="d-grid gap-2">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('login') }}">
+          <i class="bi bi-box-arrow-in-right me-2"></i> Iniciar sesión
+        </a>
+      </div>
+      <small class="d-block mt-3 text-muted">
+        Si aún no tienes usuario, solicita acceso al administrador regional.
+      </small>
     {% endif %}
   </div>
 </div>
 
 {% if current_user.is_authenticated %}
-<div class="row g-3">
-  <div class="col-6">
-    <div class="kpi-chip"><span class="kpi-dot"></span> <strong>Dashboard</strong></div>
+
+  <!-- Accesos rápidos en formato cards (tipo app) -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body d-flex">
+          <div class="me-3 d-flex align-items-start">
+            <span class="badge bg-primary-subtle text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;">
+              <i class="bi bi-hospital"></i>
+            </span>
+          </div>
+          <div class="flex-grow-1">
+            <h6 class="mb-1">Registros de hoy</h6>
+            <p class="mb-2 small text-muted">
+              Verifica y actualiza los datos del día para tu hospital.
+            </p>
+            <a href="{{ url_for('listar') }}?desde={{ hoy }}&hasta={{ hoy }}"
+               class="btn btn-sm btn-outline-primary">
+              Revisar registros de hoy
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body d-flex">
+          <div class="me-3 d-flex align-items-start">
+            <span class="badge bg-success-subtle text-success rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;">
+              <i class="bi bi-bar-chart-line"></i>
+            </span>
+          </div>
+          <div class="flex-grow-1">
+            <h6 class="mb-1">Indicadores rápidos</h6>
+            <p class="mb-2 small text-muted">
+              Monitorea atenciones, ingresos, traslados y defunciones.
+            </p>
+            <a href="{{ url_for('dashboard') }}"
+               class="btn btn-sm btn-outline-success">
+              Abrir dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="col-6">
-    <div class="kpi-chip"><span class="kpi-dot"></span> <strong>Exportar CSV</strong></div>
-  </div>
-</div>
+
+  {% if current_user.is_admin %}
+    <!-- Zona solo para administradores -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-2">
+          <span class="badge bg-dark-subtle text-dark me-2">
+            <i class="bi bi-shield-lock me-1"></i> Admin
+          </span>
+          <h6 class="mb-0">Gestión administrativa</h6>
+        </div>
+        <p class="small text-muted mb-3">
+          Administra hospitales y usuarios autorizados para registrar información.
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('hospitales_list') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-hospital me-1"></i> Hospitales
+          </a>
+          <a href="{{ url_for('usuarios_list') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-people me-1"></i> Usuarios
+          </a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
 {% endif %}
+
 {% endblock %}

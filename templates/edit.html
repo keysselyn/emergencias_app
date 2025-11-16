@@ -1,49 +1,172 @@
-{% extends 'base.html' %}
-{% block content %}
-<form method="post" class="card p-3">
-  <h5 class="mb-2"><i class="bi bi-journal-plus"></i> {{ 'Nuevo registro' }}</h5>
-  <div class="form-section-title">Datos básicos</div>
-  <div class="row g-3">
-    <div class="col-6">
-      <label class="form-label">Fecha</label>
-      <input type="date" name="fecha" class="form-control" required>
-    </div>
+{% extends "base.html" %}
+{% block title %}Editar Registro{% endblock %}
 
-    {% if current_user.is_admin %}
-    <div class="col-12">
-      <label class="form-label">Hospital</label>
-      <select name="hospital" class="form-select" required>
-        <option value="">Seleccione...</option>
-        {% for h in HOSPITALES %}
-          <option value="{{ h.nombre }}">{{ h.nombre }}</option>
-        {% endfor %}
-      </select>
+{% block content %}
+<div class="page-container">
+
+  <!-- Encabezado tipo INICIO / NUEVO -->
+  <div class="card page-header-card mb-3 p-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+           style="width:48px; height:48px;">
+        <i class="bi bi-pencil-square text-primary fs-3"></i>
+      </div>
+      <div>
+        <h4 class="mb-0 fw-semibold">Editar registro</h4>
+        <div class="page-subtitle">
+          Modifica la información diaria de emergencias
+        </div>
+      </div>
     </div>
-    {% else %}
-    <div class="col-12">
-      <label class="form-label">Hospital</label>
-      <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
-      <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+  </div>
+
+  <!-- CARD DEL FORMULARIO -->
+  <div class="card shadow-sm border-0 p-3" style="border-radius: 16px;">
+    <form method="POST"
+          action="{{ url_for('editar', rec_id=rec.id) }}"
+          class="row g-3">
+
+      <!-- Sección: datos básicos -->
+      <div class="col-12">
+        <div class="form-section-title mb-1">Datos básicos</div>
+      </div>
+
+      <!-- Fecha -->
+      <div class="col-12 col-md-6">
+        <label class="form-label fw-semibold">Fecha</label>
+        <input type="date"
+               name="fecha"
+               class="form-control"
+               value="{{ rec.fecha.strftime('%Y-%m-%d') if rec.fecha else '' }}"
+               required>
+      </div>
+
+      <!-- Hospital (solo admin puede cambiarlo) -->
+      {% if current_user.is_admin %}
+      <div class="col-12">
+        <label class="form-label fw-semibold">Hospital</label>
+        <select name="hospital" class="form-select" required>
+          <option value="">Seleccione un hospital…</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}"
+                    {% if h.nombre == rec.hospital %}selected{% endif %}>
+              {{ h.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% else %}
+      <div class="col-12">
+        <label class="form-label fw-semibold">Hospital</label>
+        <input type="text" class="form-control" value="{{ rec.hospital }}" disabled>
+        <!-- Si quisieras, podrías incluir un hidden, pero el backend ya fuerza hospital del usuario -->
+      </div>
+      {% endif %}
+
+      <!-- Sección: conteos -->
+      <div class="col-12 mt-2">
+        <div class="form-section-title mb-1">Conteos</div>
+      </div>
+
+      <div class="col-6 col-md-4">
+        <label class="form-label fw-semibold">Atenciones</label>
+        <input type="number" name="atenciones" min="0" step="1"
+               class="form-control"
+               value="{{ rec.atenciones }}">
+      </div>
+
+      <div class="col-6 col-md-4">
+        <label class="form-label fw-semibold">Ingresos</label>
+        <input type="number" name="ingresos" min="0" step="1"
+               class="form-control"
+               value="{{ rec.ingresos }}">
+      </div>
+
+      <div class="col-6 col-md-4">
+        <label class="form-label fw-semibold">Alta voluntaria</label>
+        <input type="number" name="alta_voluntario" min="0" step="1"
+               class="form-control"
+               value="{{ rec.alta_voluntario }}">
+      </div>
+
+      <div class="col-6 col-md-4">
+        <label class="form-label fw-semibold">Traslados</label>
+        <input type="number" name="traslados" min="0" step="1"
+               class="form-control"
+               value="{{ rec.traslados }}">
+      </div>
+
+      <div class="col-6 col-md-4">
+        <label class="form-label fw-semibold">Defunciones</label>
+        <input type="number" name="defunciones" min="0" step="1"
+               class="form-control"
+               value="{{ rec.defunciones }}">
+      </div>
+
+      <!-- Sección: traslados / referencia -->
+      <div class="col-12 mt-2">
+        <div class="form-section-title mb-1">Traslados</div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label fw-semibold">Motivo del traslado</label>
+        <input type="text"
+               name="motivo_traslado"
+               class="form-control"
+               value="{{ rec.motivo_traslado or '' }}">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label fw-semibold">Hospital de referencia</label>
+        <select name="hospital_referencia" class="form-select">
+          <option value="">Seleccione…</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}"
+                    {% if rec.hospital_referencia == h.nombre %}selected{% endif %}>
+              {{ h.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Eventualidades -->
+      <div class="col-12 mt-2">
+        <div class="form-section-title mb-1">Eventualidades</div>
+      </div>
+
+      <div class="col-12">
+        <textarea name="eventualidades"
+                  class="form-control"
+                  rows="3"
+                  placeholder="Describa eventualidades relevantes…">{{ rec.eventualidades or '' }}</textarea>
+      </div>
+
+      <!-- Botones Guardar / Volver -->
+      <div class="col-12 d-flex justify-content-between flex-wrap gap-2 mt-3">
+        <a href="{{ url_for('listar') }}"
+           class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-save2"></i> Guardar cambios
+        </button>
+      </div>
+
+    </form>
+
+    <!-- Botón Eliminar (solo Admin), fuera del form principal -->
+    {% if current_user.is_admin %}
+    <div class="mt-2 d-flex justify-content-end">
+      <form action="{{ url_for('eliminar', rec_id=rec.id) }}"
+            method="POST"
+            onsubmit="return confirm('¿Seguro que deseas eliminar este registro? Esta acción no se puede deshacer.');">
+        <button type="submit" class="btn btn-outline-danger">
+          <i class="bi bi-trash"></i> Eliminar
+        </button>
+      </form>
     </div>
     {% endif %}
 
-    <div class="col-6"><label class="form-label">Atenciones</label><input type="number" min="0" name="atenciones" class="form-control" value="0"></div>
-    <div class="col-6"><label class="form-label">Ingresos</label><input type="number" min="0" name="ingresos" class="form-control" value="0"></div>
-    <div class="col-6"><label class="form-label">Alta Voluntario</label><input type="number" min="0" name="alta_voluntario" class="form-control" value="0"></div>
-    <div class="col-6"><label class="form-label">Traslados</label><input type="number" min="0" name="traslados" class="form-control" value="0"></div>
-
-    <div class="col-12"><label class="form-label">Motivo del traslado</label><input type="text" name="motivo_traslado" class="form-control"></div>
-    <div class="col-12"><label class="form-label">Hospital de referencia</label><input type="text" name="hospital_referencia" class="form-control"></div>
-
-    <div class="col-6"><label class="form-label">Defunciones</label><input type="number" min="0" name="defunciones" class="form-control" value="0"></div>
-    <div class="col-12"><label class="form-label">Eventualidades</label><textarea name="eventualidades" class="form-control" rows="3" placeholder="Notas, eventualidades..."></textarea></div>
   </div>
-
-  <div class="sticky-actions mt-3">
-    <div class="d-grid gap-2">
-      <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
-      <a href="/listar" class="btn btn-outline-secondary">Cancelar</a>
-    </div>
-  </div>
-</form>
+</div>
 {% endblock %}

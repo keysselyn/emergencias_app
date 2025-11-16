@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar usuario' if u else 'Nuevo usuario' }}{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 600px;">
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-header bg-primary text-white rounded-top-4">
+      <h5 class="mb-0">
+        {% if u %}
+          Editar usuario
+        {% else %}
+          Nuevo usuario
+        {% endif %}
+      </h5>
+    </div>
+    <div class="card-body">
+      <form method="POST" class="row g-3">
+        
+        <!-- Usuario -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">Nombre de usuario</label>
+          <input type="text"
+                 name="username"
+                 class="form-control"
+                 value="{{ u.username if u else '' }}"
+                 required>
+        </div>
+
+        <!-- Hospital asignado -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">Hospital asignado</label>
+          <select name="hospital" class="form-select">
+            <option value="">(Sin hospital)</option>
+            {% for h in HOSPITALES %}
+              <option value="{{ h.nombre }}"
+                {% if u and u.hospital == h.nombre %}selected{% endif %}>
+                {{ h.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            El usuario solo verá y gestionará registros de este hospital (si no es Admin).
+          </div>
+        </div>
+
+        <!-- Rol -->
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input"
+                   type="checkbox"
+                   name="is_admin"
+                   id="is_admin"
+                   {% if u and u.is_admin %}checked{% endif %}>
+            <label class="form-check-label fw-semibold" for="is_admin">
+              Usuario Administrador
+            </label>
+          </div>
+          <div class="form-text">
+            Los administradores pueden ver todos los hospitales, crear usuarios, etc.
+          </div>
+        </div>
+
+        <!-- Contraseña -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            {% if u %}
+              Nueva contraseña (opcional)
+            {% else %}
+              Contraseña
+            {% endif %}
+          </label>
+          <input type="password"
+                 name="password1"
+                 class="form-control"
+                 {% if not u %}required{% endif %}>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            Confirmar contraseña
+          </label>
+          <input type="password"
+                 name="password2"
+                 class="form-control"
+                 {% if not u %}required{% endif %}>
+        </div>
+
+        <!-- Botones -->
+        <div class="col-12 d-flex justify-content-between mt-2">
+          <a href="{{ url_for('usuarios_list') }}" class="btn btn-outline-secondary">
+            Volver
+          </a>
+          <button type="submit" class="btn btn-primary">
+            {% if u %}Guardar cambios{% else %}Crear usuario{% endif %}
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

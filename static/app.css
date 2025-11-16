@@ -87,3 +87,80 @@ html, body {
   .mkey { color: var(--muted); font-size: .85rem; }
   .mval { font-weight: 600; }
 }
+/* ======== TABLAS CEBRA MODERNAS ======== */
+
+.table-zebra {
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
+  font-size: 0.85rem;
+}
+
+/* Encabezado */
+.table-zebra thead tr th {
+  background: #0d6efd;
+  color: #ffffff;
+  border: none !important;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.4px;
+  padding: 10px 12px;
+}
+
+/* Filas base */
+.table-zebra tbody tr {
+  background: #ffffff;
+}
+
+/* Cebra: filas pares con fondo suave */
+.table-zebra tbody tr:nth-child(even) td {
+  background: #f5f8ff !important;  /* azul muy clarito */
+}
+
+.table-zebra tbody tr:nth-child(odd) td {
+  background: #ffffff !important;
+}
+
+/* Hover suave */
+.table-zebra tbody tr:hover td {
+  background: #e0edff !important;
+}
+
+/* Celdas */
+.table-zebra tbody tr td {
+  border: none !important;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+/* Bordes redondeados por fila (izquierda/derecha) */
+.table-zebra tbody tr td:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.table-zebra tbody tr td:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+/* Acciones en tabla escritorio: siempre en una línea */
+.table-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;     /* espacio entre botones */
+}
+
+/* Quita márgenes de formularios inline */
+.table-actions form {
+  margin: 0;
+}
+
+/* Botones compactos */
+.table-actions .btn {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}

@@ -1,30 +1,66 @@
-import os
-
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, Response,
-    send_from_directory
+    send_from_directory, abort
 )
 from flask_login import (
     LoginManager, login_user, logout_user, current_user, login_required
 )
 from datetime import datetime
-from io import StringIO
+from io import StringIO, BytesIO
 from functools import wraps
-import csv, json
+import csv, json, os
 from dateutil import parser
 
-from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, NamedStyle
 from openpyxl.utils import get_column_letter
 
+from sqlalchemy import text  # para /healthz
 from models import db, EmergencyRecord, User, Hospital
 
-# -------------------- Configuración base --------------------
+# -------------------- Configuración base (Railway/MySQL) --------------------
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///emergencias.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'cambia-esta-clave'  # cámbiala en producción
+
+# ======= DB CONFIG: MySQL (sin SQLite) =======
+# Opción A: usar DATABASE_URL directamente
+#   Formato: mysql+pymysql://USER:PASS@HOST:PORT/DBNAME?charset=utf8mb4
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://root:@127.0.0.1:3306/emergencias?charset=utf8mb4"
+)
+
+# Opción B: usar variables del plugin MySQL de Railway
+# (MYSQLHOST, MYSQLUSER, MYSQLPASSWORD, MYSQLPORT, MYSQLDATABASE)
+if not DATABASE_URL:
+    rh = os.getenv("MYSQLHOST")
+    ru = os.getenv("MYSQLUSER")
+    rp = os.getenv("MYSQLPASSWORD")
+    rport = os.getenv("MYSQLPORT", "3306")
+    rdb = os.getenv("MYSQLDATABASE")
+    if rh and ru and rp and rdb:
+        DATABASE_URL = f"mysql+pymysql://{ru}:{rp}@{rh}:{rport}/{rdb}?charset=utf8mb4"
+
+# Si aún no hay DATABASE_URL → error explícito
+if not DATABASE_URL:
+    raise RuntimeError(
+        "No se ha configurado la base de datos. "
+        "Define DATABASE_URL o las variables MYSQLHOST, MYSQLUSER, "
+        "MYSQLPASSWORD, MYSQLPORT, MYSQLDATABASE."
+    )
+
+# Normaliza MySQL URL → mysql+pymysql://
+if DATABASE_URL.startswith("mysql://"):
+    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+
+# Asegura charset si es MySQL
+if DATABASE_URL.startswith("mysql+pymysql://") and "charset=" not in DATABASE_URL:
+    sep = "&" if "?" in DATABASE_URL else "?"
+    DATABASE_URL = f"{DATABASE_URL}{sep}charset=utf8mb4"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "cambia-esta-clave")
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
 db.init_app(app)
 
@@ -59,13 +95,98 @@ def inject_choices():
     return dict(HOSPITALES=hospitales)
 
 
-with app.app_context():
-    db.create_all()
+# -------------------- BOOTSTRAP automático (opcional) --------------------
+def _seed_hospitals():
+    HOSPITALES_BASE = [
+        "Hospital Regional Juan Pablo Pina",
+        "Hospital Provincial Dr. Rafael j Mañón",
+        "Hospital Provincial Nuestra señora de regla",
+        "Hospital Municpal Villa Fundacion",
+        "Hospital Municipal Barsequillo",
+        "Hospital Municipal Maria Paniagua",
+        "Hospital Municipal Tomasina Valdez",
+        "Hospital Municipal Nizao",
+        "Hospital  Municipal Cambita pueblo",
+        "Hospital Municipal Cambita Garabitos",
+        "Hospital Municipal de Yaguate",
+        "Hospital Municipal Villa Altagracia",
+        "Hospital Nustra Señora de Altagracia",
+        "Hospital Municipal Dr.Guarionex ALcantara",
+        "Hospital Provincial San José de Ocoa",
+        "Hospital Municipal los Cacaos",
+    ]
+    creados = 0
+    for nombre in HOSPITALES_BASE:
+        if not Hospital.query.filter_by(nombre=nombre).first():
+            db.session.add(Hospital(nombre=nombre, activo=True))
+            creados += 1
+    db.session.commit()
+    print(f"[BOOTSTRAP] Hospitales OK (nuevos: {creados})")
+
+
+def bootstrap_if_empty():
+    """Crea tablas y un admin si la DB está vacía (controlado por BOOTSTRAP_ON_START=1)."""
+    with app.app_context():
+        db.create_all()
+        total = User.query.count()
+        print(f"[BOOTSTRAP] Usuarios existentes: {total}")
+        if total == 0:
+            _seed_hospitals()
+            admin_user = os.getenv("ADMIN_USER", "admin")
+            admin_pass = os.getenv("ADMIN_PASS", "Admin123*")
+            admin_hosp = os.getenv("ADMIN_HOSPITAL", "Hospital Municipal los Cacaos")
+
+            ok = Hospital.query.filter_by(nombre=admin_hosp, activo=True).first()
+            if not ok:
+                any_h = Hospital.query.filter_by(activo=True).first()
+                admin_hosp = any_h.nombre if any_h else "Hospital Municipal los Cacaos"
+
+            u = User(username=admin_user, hospital=admin_hosp, is_admin=True)
+            u.set_password(admin_pass)
+            db.session.add(u)
+            db.session.commit()
+            print(f"[BOOTSTRAP] Admin creado: {admin_user} / hospital={admin_hosp}")
+        else:
+            print("[BOOTSTRAP] Ya hay usuarios. No se crea admin nuevo.")
+
+
+# Ejecutar bootstrap en arranque si BOOTSTRAP_ON_START=1
+if os.getenv("BOOTSTRAP_ON_START", "0") == "1":
+    try:
+        bootstrap_if_empty()
+    except Exception as e:
+        print(f"[BOOTSTRAP] Error: {e}")
+
+
+# Ruta manual opcional (por token) para forzar bootstrap 1 sola vez
+@app.route('/admin/bootstrap')
+def admin_bootstrap():
+    token = request.args.get('token', '')
+    expected = os.getenv("SETUP_TOKEN", "")
+    if not expected or token != expected:
+        return abort(403)
+    try:
+        bootstrap_if_empty()
+        return "Bootstrap ejecutado", 200
+    except Exception as e:
+        return f"Error: {e}", 500
+
+
+# -------------------- Healthcheck (diagnóstico DB) --------------------
+@app.route("/healthz")
+def healthz():
+    try:
+        db.session.execute(text("SELECT 1"))
+        return "OK", 200
+    except Exception as e:
+        return f"DB ERROR: {e}", 500
+
 
 # -------------------- Páginas base --------------------
 @app.route('/')
 def index():
-    return render_template('index.html')
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    return render_template('index.html', hoy=hoy)
 
 
 # -------------------- Autenticación --------------------
@@ -90,7 +211,6 @@ def logout():
     flash('Sesión cerrada.', 'success')
     return redirect(url_for('index'))
 
-
 # -------------------- Registros: Crear / Editar --------------------
 @app.route('/nuevo', methods=['GET', 'POST'])
 @login_required
@@ -110,6 +230,18 @@ def nuevo():
                 hospital = hospital_nombre
             else:
                 hospital = current_user.hospital
+
+            # 🚨 VALIDAR: no permitir 2 registros mismo día + mismo hospital
+            existente = EmergencyRecord.query.filter_by(
+                fecha=fecha,
+                hospital=hospital
+            ).first()
+
+            if existente:
+                flash('Ya existe un registro para este hospital en esa fecha. '
+                      'Por favor edítalo en lugar de crear uno nuevo.', 'danger')
+                # Si quieres, puedes mandarlo directo al editar:
+                return redirect(url_for('editar', rec_id=existente.id))
 
             def to_int(name):
                 val = request.form.get(name, '0').strip()
@@ -152,7 +284,7 @@ def editar(rec_id):
     if request.method == 'POST':
         try:
             fecha_str = request.form.get('fecha')
-            rec.fecha = parser.parse(fecha_str).date() if fecha_str else rec.fecha
+            nueva_fecha = parser.parse(fecha_str).date() if fecha_str else rec.fecha
 
             if current_user.is_admin:
                 hospital_nombre = (request.form.get('hospital') or rec.hospital).strip()
@@ -160,9 +292,24 @@ def editar(rec_id):
                 if not ok:
                     flash('Hospital inválido o inactivo.', 'danger')
                     return render_template('edit.html', rec=rec)
-                rec.hospital = hospital_nombre
+                nuevo_hospital = hospital_nombre
             else:
-                rec.hospital = current_user.hospital
+                nuevo_hospital = current_user.hospital
+
+            # 🚨 VALIDAR: no permitir duplicado en OTRO registro
+            duplicado = EmergencyRecord.query.filter(
+                EmergencyRecord.id != rec.id,
+                EmergencyRecord.fecha == nueva_fecha,
+                EmergencyRecord.hospital == nuevo_hospital
+            ).first()
+
+            if duplicado:
+                flash('Ya existe otro registro para este hospital en esa fecha.', 'danger')
+                return render_template('edit.html', rec=rec)
+
+            # Si pasa la validación, actualizamos
+            rec.fecha = nueva_fecha
+            rec.hospital = nuevo_hospital
 
             def to_int(name, current):
                 val = request.form.get(name, None)
@@ -190,7 +337,20 @@ def editar(rec_id):
     return render_template('edit.html', rec=rec)
 
 
-# -------------------- Listar + Filtros + Exportar --------------------
+# -------------------- Eliminar Registro solo Admin --------------------
+@app.route('/eliminar/<int:rec_id>', methods=['POST'])
+@login_required
+@admin_required
+def eliminar(rec_id):
+    """Eliminar un registro de emergencias (solo Administradores)."""
+    rec = EmergencyRecord.query.get_or_404(rec_id)
+    db.session.delete(rec)
+    db.session.commit()
+    flash('Registro eliminado correctamente.', 'success')
+    return redirect(url_for('listar'))
+
+
+# -------------------- Listar + Filtros --------------------
 @app.route('/listar')
 @login_required
 def listar():
@@ -225,6 +385,7 @@ def listar():
     return render_template('list.html', registros=registros)
 
 
+# -------------------- Exportar CSV --------------------
 @app.route('/exportar_csv')
 @login_required
 def exportar_csv():
@@ -273,18 +434,11 @@ def exportar_csv():
     )
 
 
-# -------------------- Exportar Excel --------------------
-
-
+# -------------------- Exportar Excel (con formato) --------------------
 @app.route('/exportar_excel')
 @login_required
 def exportar_excel():
-    from io import BytesIO
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, NamedStyle
-    from openpyxl.utils import get_column_letter
-
-    # === 1) Filtros (mismo criterio que en CSV y Listar) ===
+    # === 1) Filtros (igual que en listar/CSV) ===
     f_hospital = (request.args.get('hospital') or '').strip()
     f_desde = request.args.get('desde') or ''
     f_hasta = request.args.get('hasta') or ''
@@ -303,11 +457,9 @@ def exportar_excel():
         d_desde, d_hasta = d_hasta, d_desde
         f_desde, f_hasta = (d_desde.isoformat() if d_desde else ''), (d_hasta.isoformat() if d_hasta else '')
 
-    # Query base
     q = EmergencyRecord.query
     motivo_vacio = []
 
-    # Rol/hospital
     if not current_user.is_admin:
         q = q.filter(EmergencyRecord.hospital == current_user.hospital)
         motivo_vacio.append(f"Rol usuario restringe a hospital '{current_user.hospital}'")
@@ -316,7 +468,6 @@ def exportar_excel():
             q = q.filter(EmergencyRecord.hospital == f_hospital)
             motivo_vacio.append(f"Filtro hospital '{f_hospital}'")
 
-    # Fechas (inclusive)
     if d_desde:
         q = q.filter(EmergencyRecord.fecha >= d_desde)
         motivo_vacio.append(f"Desde {d_desde.isoformat()}")
@@ -326,13 +477,9 @@ def exportar_excel():
 
     registros = q.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
 
-    print(f"[EXPORT-EXCEL] filtros -> hospital='{f_hospital}' | desde='{f_desde}' | hasta='{f_hasta}' | admin={current_user.is_admin}")
-    print(f"[EXPORT-EXCEL] registros encontrados: {len(registros)}")
-
     # Salvavidas: si no hay datos y había filtros de fecha, reintenta sin fechas
     reintento_sin_fechas = False
     if len(registros) == 0 and (d_desde or d_hasta):
-        print("[EXPORT-EXCEL] Sin resultados con fechas; reintentando sin filtros de fecha…")
         q2 = EmergencyRecord.query
         if not current_user.is_admin:
             q2 = q2.filter(EmergencyRecord.hospital == current_user.hospital)
@@ -341,9 +488,8 @@ def exportar_excel():
                 q2 = q2.filter(EmergencyRecord.hospital == f_hospital)
         registros = q2.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
         reintento_sin_fechas = True
-        print(f"[EXPORT-EXCEL] reintento sin fechas -> {len(registros)} registros")
 
-    # === 2) Crear workbook con estilos ===
+    # === 2) Workbook con estilos ===
     wb = Workbook()
     ws = wb.active
     ws.title = "Registros"
@@ -373,14 +519,13 @@ def exportar_excel():
     text_wrap = NamedStyle(name="text_wrap")
     text_wrap.alignment = Alignment(wrap_text=True, vertical="top")
 
-    # Registrar estilos (maneja versiones openpyxl)
     for st in (number_right, date_center, text_wrap):
         try:
             wb.add_named_style(st)
         except Exception:
             pass
 
-    # Encabezados
+    # Encabezado
     for col_idx in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col_idx)
         cell.fill = header_fill
@@ -388,11 +533,11 @@ def exportar_excel():
         cell.alignment = header_align
         cell.border = border_all
 
-    # === 3) Datos ===
+    # Datos
     row_start = 2
     for r in registros:
         ws.append([
-            r.fecha,                        # tipo date -> se aplica estilo abajo
+            r.fecha,
             r.hospital,
             r.atenciones,
             r.ingresos,
@@ -404,7 +549,6 @@ def exportar_excel():
             (r.eventualidades or "").replace("\r", " ")
         ])
 
-    # Formatos y bordes
     COL_FECHA = 1
     COL_NUMS = [3,4,5,6,9]
     COL_TEXT_WRAP = [7,8,10]
@@ -426,19 +570,19 @@ def exportar_excel():
         ws.cell(row=total_row, column=1).font = Font(bold=True)
         ws.cell(row=total_row, column=1).alignment = Alignment(horizontal="right")
 
-        from openpyxl.utils import get_column_letter
         for c in COL_NUMS:
             col_letter = get_column_letter(c)
-            ws.cell(row=total_row, column=c, value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})").style = "number_right"
+            ws.cell(row=total_row, column=c,
+                    value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})").style = "number_right"
         for c in range(1, len(headers) + 1):
             cell = ws.cell(row=total_row, column=c)
             cell.border = border_all
             if c in COL_NUMS or c == 1:
                 cell.fill = PatternFill("solid", fgColor="E9F2FF")
 
-        last_row = total_row  # para autofiltro
+        last_row = total_row
 
-    # Anchos
+    # Ajustes UX
     widths = {1:12, 2:38, 3:12, 4:12, 5:16, 6:12, 7:28, 8:28, 9:12, 10:50}
     for c, w in widths.items():
         ws.column_dimensions[get_column_letter(c)].width = w
@@ -446,7 +590,7 @@ def exportar_excel():
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{last_row}"
 
-    # === 4) Hoja Resumen con info de filtros y motivos ===
+    # Hoja resumen
     summary = wb.create_sheet("Resumen", 0)
     summary["A1"] = "Exportación de Registros de Emergencias"
     summary["A1"].font = Font(size=14, bold=True)
@@ -463,7 +607,6 @@ def exportar_excel():
     summary["A7"] = "Registros exportados:"
     summary["B7"] = len(registros)
 
-    # Motivo vacío / reintento
     summary["A9"] = "Notas:"
     notes = []
     if reintento_sin_fechas:
@@ -472,14 +615,12 @@ def exportar_excel():
         notes.append("Filtros aplicados: " + "; ".join(motivo_vacio))
     summary["B9"] = "\n".join(notes) if notes else "—"
 
-    # Estética
     summary.column_dimensions["A"].width = 20
     summary.column_dimensions["B"].width = 60
     for r in range(1, 11):
         for c in range(1, 3):
             summary.cell(row=r, column=c).alignment = Alignment(vertical="top")
 
-    # === 5) Enviar archivo ===
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)
@@ -529,7 +670,7 @@ def dashboard():
     kpi_traslados  = sum(r.traslados for r in registros)
     kpi_defunciones= sum(r.defunciones for r in registros)
 
-    # Serie (por fecha)
+    # Serie por fecha
     series = {}
     for r in registros:
         key = r.fecha.isoformat()
@@ -644,16 +785,143 @@ def hospitales_eliminar(h_id):
     return redirect(url_for('hospitales_list'))
 
 
+# -------------------- Gestión de Usuarios (solo Admin) --------------------
+@app.route('/usuarios')
+@login_required
+@admin_required
+def usuarios_list():
+    usuarios = User.query.order_by(User.is_admin.desc(), User.username.asc()).all()
+    return render_template('users_list.html', usuarios=usuarios)
+
+
+@app.route('/usuarios/nuevo', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def usuarios_nuevo():
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        hospital = (request.form.get('hospital') or '').strip()
+        password1 = request.form.get('password1') or ''
+        password2 = request.form.get('password2') or ''
+        is_admin = True if request.form.get('is_admin') == 'on' else False
+
+        # Validaciones básicas
+        if not username:
+            flash('El nombre de usuario es obligatorio.', 'danger')
+            return render_template('user_form.html')
+
+        if User.query.filter_by(username=username).first():
+            flash('Ya existe un usuario con ese nombre.', 'danger')
+            return render_template('user_form.html')
+
+        if not password1:
+            flash('La contraseña es obligatoria.', 'danger')
+            return render_template('user_form.html')
+
+        if password1 != password2:
+            flash('Las contraseñas no coinciden.', 'danger')
+            return render_template('user_form.html')
+
+        # Validar hospital (puede ser vacío si quieres permitir usuarios sin hospital)
+        if hospital:
+            h = Hospital.query.filter_by(nombre=hospital, activo=True).first()
+            if not h:
+                flash('Hospital inválido o inactivo.', 'danger')
+                return render_template('user_form.html')
+
+        # Crear usuario
+        u = User(
+            username=username,
+            hospital=hospital or None,
+            is_admin=is_admin
+        )
+        u.set_password(password1)
+        db.session.add(u)
+        db.session.commit()
+        flash('Usuario creado correctamente.', 'success')
+        return redirect(url_for('usuarios_list'))
+
+    # GET
+    return render_template('user_form.html')
+
+
+@app.route('/usuarios/editar/<int:u_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def usuarios_editar(u_id):
+    u = User.query.get_or_404(u_id)
+
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        hospital = (request.form.get('hospital') or '').strip()
+        password1 = request.form.get('password1') or ''
+        password2 = request.form.get('password2') or ''
+        is_admin = True if request.form.get('is_admin') == 'on' else False
+
+        if not username:
+            flash('El nombre de usuario es obligatorio.', 'danger')
+            return render_template('user_form.html', u=u)
+
+        # Verificar que no exista otro usuario con ese username
+        existe = User.query.filter(User.id != u.id, User.username == username).first()
+        if existe:
+            flash('Ya existe otro usuario con ese nombre.', 'danger')
+            return render_template('user_form.html', u=u)
+
+        # Validar hospital
+        if hospital:
+            h = Hospital.query.filter_by(nombre=hospital, activo=True).first()
+            if not h:
+                flash('Hospital inválido o inactivo.', 'danger')
+                return render_template('user_form.html', u=u)
+
+        u.username = username
+        u.hospital = hospital or None
+        u.is_admin = is_admin
+
+        # Cambio de contraseña solo si se llenan ambos campos
+        if password1 or password2:
+            if password1 != password2:
+                flash('Las contraseñas no coinciden.', 'danger')
+                return render_template('user_form.html', u=u)
+            if not password1:
+                flash('La nueva contraseña no puede estar vacía.', 'danger')
+                return render_template('user_form.html', u=u)
+            u.set_password(password1)
+
+        db.session.commit()
+        flash('Usuario actualizado correctamente.', 'success')
+        return redirect(url_for('usuarios_list'))
+
+    return render_template('user_form.html', u=u)
+
+
+@app.route('/usuarios/eliminar/<int:u_id>', methods=['POST'])
+@login_required
+@admin_required
+def usuarios_eliminar(u_id):
+    u = User.query.get_or_404(u_id)
+
+    # Evitar que un admin se borre a sí mismo (opcional)
+    if current_user.id == u.id:
+        flash('No puedes eliminar tu propio usuario.', 'danger')
+        return redirect(url_for('usuarios_list'))
+
+    db.session.delete(u)
+    db.session.commit()
+    flash('Usuario eliminado correctamente.', 'success')
+    return redirect(url_for('usuarios_list'))
+
+
+
 # -------------------- Rutas PWA --------------------
 @app.route('/manifest.webmanifest')
 def manifest():
-    # Debe servirse desde raíz
     return send_from_directory('static', 'manifest.webmanifest', mimetype='application/manifest+json')
 
 
 @app.route('/sw.js')
 def sw():
-    # Service Worker debe servirse desde raíz para controlar todo el scope
     return send_from_directory('static', 'sw.js', mimetype='application/javascript')
 
 
@@ -664,4 +932,6 @@ def offline():
 
 # -------------------- Main --------------------
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Railway usa PORT; local 5000
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
