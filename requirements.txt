@@ -22,3 +22,5 @@ click==8.1.7
 
 # Conector MySQL
 PyMySQL
+
+cryptography
