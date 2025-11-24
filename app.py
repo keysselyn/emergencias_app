@@ -85,7 +85,8 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "cambia-esta-clave")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
 db.init_app(app)
-
+from bootstrap import run_bootstrap_on_start
+run_bootstrap_on_start(app)
 
 # ==============================
 # LOGIN MANAGER
