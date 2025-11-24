@@ -1,6 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+<<<<<<< HEAD
 from datetime import datetime, date
+=======
+from datetime import date
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 
 db = SQLAlchemy()
 
@@ -9,7 +13,9 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
+    # username indexado y único (80 es seguro para MySQL + utf8mb4)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+<<<<<<< HEAD
     password = db.Column(db.String(255), nullable=False)
 
     # Hospital al que pertenece
@@ -33,6 +39,21 @@ class User(db.Model):
 
     
 
+=======
+    # hash de contraseña (255 es suficiente para werkzeug)
+    password = db.Column(db.String(255), nullable=False)
+    # nombre de hospital en texto (lo usas mucho en filtros/export)
+    hospital = db.Column(db.String(200), nullable=True, index=True)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
+    # Opciones MySQL
+    __table_args__ = {
+        "mysql_engine": "InnoDB",
+        "mysql_charset": "utf8mb4",
+        "mysql_collate": "utf8mb4_unicode_ci",
+    }
+
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     # Métodos de ayuda para Flask-Login
     def set_password(self, raw_password: str) -> None:
         self.password = generate_password_hash(raw_password)
@@ -57,22 +78,39 @@ class User(db.Model):
         return str(self.id)
 
     def __repr__(self) -> str:  # pragma: no cover
+<<<<<<< HEAD
         return f"<User {self.username} admin={self.is_admin} hosp_admin={self.is_hospital_admin}>"
+=======
+        return f"<User {self.username} admin={self.is_admin}>"
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 
 
 class Hospital(db.Model):
     __tablename__ = "hospitals"
 
     id = db.Column(db.Integer, primary_key=True)
+<<<<<<< HEAD
     nombre = db.Column(db.String(200), unique=True, nullable=False, index=True)
     activo = db.Column(db.Boolean, default=True, nullable=False, index=True)
 
     # NUEVO: nombre de archivo del logo (guardado en static/logos/)
     logo_filename = db.Column(db.String(255), nullable=True)
+=======
+    # 191 para estar 100% tranquilos con unique+index en MySQL antiguos
+    nombre = db.Column(db.String(191), unique=True, nullable=False, index=True)
+    activo = db.Column(db.Boolean, default=True, nullable=False, index=True)
+
+    __table_args__ = {
+        "mysql_engine": "InnoDB",
+        "mysql_charset": "utf8mb4",
+        "mysql_collate": "utf8mb4_unicode_ci",
+    }
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Hospital {self.nombre} activo={self.activo}>"
 
+<<<<<<< HEAD
     # Opcional: URL para usar en HTML normal
     def get_logo_url(self):
         from flask import url_for
@@ -89,12 +127,18 @@ class Hospital(db.Model):
         return os.path.join(current_app.static_folder, "img", self.logo_filename)
 
 
+=======
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 
 class EmergencyRecord(db.Model):
     __tablename__ = "emergency_records"
 
     id = db.Column(db.Integer, primary_key=True)
     fecha = db.Column(db.Date, nullable=False, index=True)
+<<<<<<< HEAD
+=======
+    # Usas hospital como string (no FK) en todo el código
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     hospital = db.Column(db.String(200), nullable=False, index=True)
 
     atenciones = db.Column(db.Integer, default=0, nullable=False)
@@ -108,6 +152,7 @@ class EmergencyRecord(db.Model):
     defunciones = db.Column(db.Integer, default=0, nullable=False)
     eventualidades = db.Column(db.Text)
 
+<<<<<<< HEAD
      # 👉 NUEVO: quién hizo el registro
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
     created_by = db.relationship("User", backref="emergency_records", lazy=True)
@@ -121,6 +166,20 @@ class EmergencyRecord(db.Model):
     )
 
     def to_row(self):
+=======
+    __table_args__ = (
+        # índice útil para listados/consultas por fecha+hospital
+        db.Index("ix_emergency_fecha_hospital", "fecha", "hospital"),
+        {
+            "mysql_engine": "InnoDB",
+            "mysql_charset": "utf8mb4",
+            "mysql_collate": "utf8mb4_unicode_ci",
+        },
+    )
+
+    def to_row(self):
+        """Fila para exportar a CSV/Excel (coincide con tus encabezados)."""
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         f = self.fecha.isoformat() if isinstance(self.fecha, (date,)) else str(self.fecha or "")
         return [
             f,
@@ -137,6 +196,7 @@ class EmergencyRecord(db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<EmergencyRecord {self.fecha} {self.hospital}>"
+<<<<<<< HEAD
 
 
 # ─────────────────────────────────────────────
@@ -301,3 +361,5 @@ def internamiento_before_update(mapper, connection, target):
     
 
 
+=======
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a

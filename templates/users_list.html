@@ -4,7 +4,11 @@
 {% block content %}
 <div class="page-container">
 
+<<<<<<< HEAD
   <!-- Encabezado -->
+=======
+  <!-- Encabezado (misma línea gráfica que inicio) -->
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
   <div class="card page-header-card mb-3 p-3">
     <div class="d-flex justify-content-between align-items-center">
       <div class="d-flex align-items-center gap-2">
@@ -15,7 +19,11 @@
         <div>
           <h5 class="mb-0 fw-semibold">Gestión de usuarios</h5>
           <div class="page-subtitle">
+<<<<<<< HEAD
             Control de acceso al registro de emergencias e internamientos
+=======
+            Control de acceso al registro diario de emergencias
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
           </div>
         </div>
       </div>
@@ -31,6 +39,7 @@
       <span class="badge bg-primary-subtle text-primary">
         <i class="bi bi-people me-1"></i> {{ usuarios|length }} usuario(s)
       </span>
+<<<<<<< HEAD
       <span class="badge bg-secondary-subtle text-secondary ">
         <i class="bi bi-shield-lock me-1"></i>
         Solo Administradores pueden gestionar usuarios
@@ -41,6 +50,11 @@
         Solo ves usuarios de tu hospital
       </span>
       {% endif %}
+=======
+      <span class="badge bg-secondary-subtle text-secondary">
+        <i class="bi bi-shield-lock me-1"></i> Solo administradores pueden gestionar usuarios
+      </span>
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     </div>
   </div>
 
@@ -60,6 +74,7 @@
       <tbody>
         {% for u in usuarios %}
         <tr>
+<<<<<<< HEAD
           <td class="fw-semibold">
             {{ u.username }}
             {% if u.id == current_user.id %}
@@ -80,6 +95,15 @@
               <span class="badge bg-secondary rounded-pill px-3">
                 <i class="bi bi-person me-1"></i> Usuario
               </span>
+=======
+          <td class="fw-semibold">{{ u.username }}</td>
+          <td>{{ u.hospital or '—' }}</td>
+          <td>
+            {% if u.is_admin %}
+              <span class="badge bg-danger rounded-pill px-3">Admin</span>
+            {% else %}
+              <span class="badge bg-secondary rounded-pill px-3">Usuario</span>
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
             {% endif %}
           </td>
           <td class="table-actions">
@@ -91,7 +115,10 @@
             {% if current_user.id != u.id %}
             <form action="{{ url_for('usuarios_eliminar', u_id=u.id) }}"
                   method="POST"
+<<<<<<< HEAD
                   class="d-inline"
+=======
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
                   onsubmit="return confirm('¿Seguro que deseas eliminar este usuario?');">
               <button type="submit" class="btn btn-outline-danger btn-sm">
                 <i class="bi bi-trash"></i>
@@ -111,17 +138,22 @@
       <div class="mcard mb-2 p-3 shadow-sm border-0" style="border-radius:16px;">
         <div class="d-flex justify-content-between align-items-start">
           <div>
+<<<<<<< HEAD
             <div class="fw-semibold">
               {{ u.username }}
               {% if u.id == current_user.id %}
                 <span class="badge bg-light text-muted ms-1">Tú</span>
               {% endif %}
             </div>
+=======
+            <div class="fw-semibold">{{ u.username }}</div>
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
             <div class="small text-muted">
               {{ u.hospital or 'Sin hospital asignado' }}
             </div>
             <div class="mt-1">
               {% if u.is_admin %}
+<<<<<<< HEAD
                 <span class="badge bg-danger rounded-pill px-3">
                   <i class="bi bi-shield-lock-fill me-1"></i> Admin general
                 </span>
@@ -133,6 +165,11 @@
                 <span class="badge bg-secondary rounded-pill px-3">
                   <i class="bi bi-person me-1"></i> Usuario
                 </span>
+=======
+                <span class="badge bg-danger rounded-pill px-3">Admin</span>
+              {% else %}
+                <span class="badge bg-secondary rounded-pill px-3">Usuario</span>
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
               {% endif %}
             </div>
           </div>

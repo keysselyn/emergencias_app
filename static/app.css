@@ -164,6 +164,7 @@ html, body {
   justify-content: center;
   align-items: center;
 }
+<<<<<<< HEAD
 
 /* Mantiene el modal centrado correctamente */
 .modal-dialog {
@@ -192,3 +193,5 @@ html, body {
   }
 }
 
+=======
+>>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
