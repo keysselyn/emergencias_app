@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Guardias de Emergencia{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+  <!-- Encabezado -->
+  <div class="card page-header-card mb-3 p-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <div class="rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+             style="width:44px;height:44px;">
+          <i class="bi bi-clipboard-pulse text-primary fs-4"></i>
+        </div>
+        <div>
+          <h5 class="mb-0 fw-semibold">Guardias de emergencia</h5>
+          <div class="page-subtitle">
+            Reporte diario de salas de emergencia y planta
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+       <!-- Nueva guardia -->
+        <a href="{{ url_for('guardias_nuevo') }}"
+           class="btn btn-primary btn-sm btn-pill px-3">
+          <i class="bi bi-plus-lg me-1"></i> Nueva guardia
+        </a>
+
+         <!-- Botón Filtros -->
+        <button class="btn btn-outline-secondary btn-sm"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#filters">
+          <i class="bi bi-funnel"></i> Filtros
+        </button>
+      </div>
+    </div>
+
+    <!-- Chips resumen (limpios) -->
+    <div class="mt-3 d-flex flex-wrap gap-2">
+      <span class="badge bg-primary-subtle text-primary">
+        <i class="bi bi-clipboard-check me-1"></i> {{ guardias|length }} guardia(s)
+      </span>
+
+      {% if rango_inicio and rango_fin %}
+        <span class="badge bg-secondary-subtle text-secondary">
+          <i class="bi bi-calendar-range me-1"></i>
+          {{ rango_inicio }} → {{ rango_fin }}
+        </span>
+      {% endif %}
+
+      {% if total_pendientes and total_pendientes > 0 %}
+        <button type="button"
+                class="badge bg-warning-subtle text-warning border-0"
+                data-bs-toggle="modal" data-bs-target="#pendingModal"
+                style="cursor:pointer;">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          {{ total_pendientes }} pendiente(s)
+        </button>
+      {% endif %}
+    </div>
+
+    {% if pendiente_count is defined and pendiente_count > 0 and pendiente_fechas %}
+      <div class="alert alert-warning mt-3 mb-0 small">
+        <strong>Fechas sin guardia registrada:</strong>
+        {{ pendiente_fechas | join(", ") }}
+      </div>
+    {% endif %}
+  </div>
+
+
+  {% if guardias %}
+
+    <!-- Tabla escritorio -->
+    <div class="table-responsive d-none d-md-block">
+      <table class="table table-zebra align-middle">
+        <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Hospital</th>
+          <th>Mat.</th>
+          <th>Vesp.</th>
+          <th>Noc.</th>
+          <th>Médico de guardia</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for g in guardias %}
+          <tr>
+            <td>{{ g.fecha }}</td>
+            <td>{{ g.hospital }}</td>
+            <td>{{ g.total_matutino }}</td>
+            <td>{{ g.total_vespertino }}</td>
+            <td>{{ g.total_nocturno }}</td>
+            <td>
+              {% if g.created_by %}
+                {{ g.created_by.nombre }} {{ g.created_by.apellido }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="table-actions text-end">
+              <a href="{{ url_for('guardias_editar', g_id=g.id) }}"
+                 class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+
+              <a href="{{ url_for('guardias_pdf', g_id=g.id) }}"
+                 class="btn btn-outline-secondary btn-sm"
+                 target="_blank"
+                 title="Exportar PDF">
+                <i class="bi bi-filetype-pdf"></i>
+              </a>
+
+              <form method="POST"
+                    action="{{ url_for('guardias_eliminar', g_id=g.id) }}"
+                    class="d-inline"
+                    onsubmit="return confirm('¿Eliminar esta guardia?');">
+                <button class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Vista móvil -->
+    <div class="d-block d-md-none">
+      {% for g in guardias %}
+        <div class="card p-3 mb-2 shadow-sm border-0" style="border-radius:16px;">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">{{ g.fecha }}</div>
+              <small class="text-muted">{{ g.hospital }}</small>
+            </div>
+            <span class="badge bg-light text-dark border">
+              Mat {{ g.total_matutino }} · Vesp {{ g.total_vespertino }} · Noc {{ g.total_nocturno }}
+            </span>
+          </div>
+
+          <div class="mt-2 small text-muted">
+            Médico de guardia:
+            <strong class="text-dark">
+              {% if g.created_by %}
+                {{ g.created_by.nombre }} {{ g.created_by.apellido }}
+              {% else %}
+                —
+              {% endif %}
+            </strong>
+          </div>
+
+          <div class="mt-3 d-flex justify-content-end gap-2">
+            <a href="{{ url_for('guardias_editar', g_id=g.id) }}"
+               class="btn btn-outline-primary btn-sm btn-pill px-3">
+              <i class="bi bi-pencil-square"></i>
+            </a>
+
+            <a href="{{ url_for('guardias_pdf', g_id=g.id) }}"
+               class="btn btn-outline-secondary btn-sm btn-pill px-3"
+               target="_blank"
+               title="Exportar PDF">
+              <i class="bi bi-filetype-pdf"></i>
+            </a>
+
+            <form method="POST"
+                  action="{{ url_for('guardias_eliminar', g_id=g.id) }}"
+                  onsubmit="return confirm('¿Eliminar guardia?');">
+              <button class="btn btn-outline-danger btn-sm btn-pill px-3">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <div class="alert alert-info">No hay guardias registradas con esos filtros.</div>
+  {% endif %}
+
+<!-- OFFCANVAS DE FILTROS -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="filters">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Filtros</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+
+  <div class="offcanvas-body">
+    <form method="GET" class="vstack gap-3">
+
+      {% if current_user.is_admin %}
+      <div>
+        <label class="form-label">Hospital</label>
+        <select name="hospital" class="form-select">
+          <option value="">Todos</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}"
+              {% if request.args.get('hospital') == h.nombre %}selected{% endif %}>
+              {{ h.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div>
+        <label class="form-label">Desde</label>
+        <input type="date" class="form-control" name="desde"
+               value="{{ request.args.get('desde','') }}">
+      </div>
+
+      <div>
+        <label class="form-label">Hasta</label>
+        <input type="date" class="form-control" name="hasta"
+               value="{{ request.args.get('hasta','') }}">
+      </div>
+
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary">
+          <i class="bi bi-funnel"></i> Aplicar
+        </button>
+        <a href="{{ url_for('guardias_list') }}" class="btn btn-outline-secondary">
+          Limpiar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+  <!-- MODAL Pendientes -->
+  {% if pendientes_por_hospital and total_pendientes > 0 %}
+  <div class="modal fade" id="pendingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold">
+            <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+            Guardias pendientes por hospital
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          {% for hosp, fechas in pendientes_por_hospital.items() %}
+            <div class="mb-3 p-2 rounded-3 bg-light">
+              <div class="fw-semibold text-primary">{{ hosp }}</div>
+              <div class="small text-muted">
+                Faltan {{ fechas|length }} día(s):
+                {% for d in fechas %}
+                  <span class="badge bg-white border text-dark me-1 mb-1">
+                    {{ d.strftime("%Y-%m-%d") }}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm btn-pill px-3"
+                  data-bs-dismiss="modal">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script para abrir modal SOLO al inicio si hay pendientes -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const modalEl = document.getElementById("pendingModal");
+      if (modalEl) {
+        const m = new bootstrap.Modal(modalEl);
+        m.show();  // se abre automáticamente al cargar la página
+      }
+    });
+  </script>
+  {% endif %}
+
+</div>
+{% endblock %}

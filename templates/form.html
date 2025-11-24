@@ -1,49 +1,120 @@
 {% extends 'base.html' %}
+{% block title %}Nuevo Registro{% endblock %}
+
 {% block content %}
-<form method="post" class="card p-3">
-  <h5 class="mb-2"><i class="bi bi-journal-plus"></i> {{ 'Nuevo registro' }}</h5>
-  <div class="form-section-title">Datos básicos</div>
-  <div class="row g-3">
-    <div class="col-6">
-      <label class="form-label">Fecha</label>
-      <input type="date" name="fecha" class="form-control" required>
-    </div>
+<div class="page-container">
 
-    {% if current_user.is_admin %}
-    <div class="col-12">
-      <label class="form-label">Hospital</label>
-      <select name="hospital" class="form-select" required>
-        <option value="">Seleccione...</option>
-        {% for h in HOSPITALES %}
+  <!-- Encabezado tipo INICIO -->
+  <div class="card page-header-card mb-3 p-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+           style="width:48px; height:48px;">
+        <i class="bi bi-journal-plus text-primary fs-3"></i>
+      </div>
+      <div>
+        <h4 class="mb-0 fw-semibold">Nuevo Registro</h4>
+        <div class="page-subtitle">Formulario diario de emergencias</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORMULARIO -->
+  <form method="post" class="card shadow-sm border-0 p-3" style="border-radius: 16px;">
+
+    <div class="form-section-title mb-2">Datos básicos</div>
+
+    <div class="row g-3">
+      <!-- Fecha -->
+      <div class="col-12 col-md-6">
+        <label class="form-label">Fecha</label>
+        <input type="date" name="fecha" class="form-control" required>
+      </div>
+
+      <!-- Hospital -->
+      {% if current_user.is_admin %}
+      <div class="col-12">
+        <label class="form-label">Hospital</label>
+        <select name="hospital" class="form-select" required>
+          <option value="">Seleccione...</option>
+          {% for h in HOSPITALES %}
           <option value="{{ h.nombre }}">{{ h.nombre }}</option>
-        {% endfor %}
-      </select>
+          {% endfor %}
+        </select>
+      </div>
+      {% else %}
+      <div class="col-12">
+        <label class="form-label">Hospital</label>
+        <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
+        <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+      </div>
+      {% endif %}
+
+      <!-- Valores numéricos -->
+      <div class="col-6">
+        <label class="form-label">Atenciones</label>
+        <input type="number" min="0" name="atenciones" class="form-control" value="0">
+      </div>
+
+      <div class="col-6">
+        <label class="form-label">Ingresos</label>
+        <input type="number" min="0" name="ingresos" class="form-control" value="0">
+      </div>
+
+      <div class="col-6">
+        <label class="form-label">Alta Voluntario</label>
+        <input type="number" min="0" name="alta_voluntario" class="form-control" value="0">
+      </div>
+
+      <div class="col-6">
+        <label class="form-label">Traslados</label>
+        <input type="number" min="0" name="traslados" class="form-control" value="0">
+      </div>
+
+      <!-- Motivo traslado -->
+      <div class="col-12">
+        <label class="form-label">Motivo del traslado</label>
+        <input type="text" name="motivo_traslado" class="form-control">
+      </div>
+
+      <!-- Hospital de referencia SELECT -->
+      <div class="col-12">
+        <label class="form-label">Hospital de referencia</label>
+        <select name="hospital_referencia" class="form-select">
+          <option value="">Seleccione...</option>
+          {% for h in HOSPITALES %}
+            {% if h.activo %}
+              <option value="{{ h.nombre }}">{{ h.nombre }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Defunciones -->
+      <div class="col-6">
+        <label class="form-label">Defunciones</label>
+        <input type="number" min="0" name="defunciones" class="form-control" value="0">
+      </div>
+
+      <!-- Eventualidades -->
+      <div class="col-12">
+        <label class="form-label">Eventualidades</label>
+        <textarea name="eventualidades" class="form-control" rows="3"
+                  placeholder="Notas, eventualidades..."></textarea>
+      </div>
     </div>
-    {% else %}
-    <div class="col-12">
-      <label class="form-label">Hospital</label>
-      <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
-      <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+
+    <!-- BOTONES -->
+    <div class="sticky-actions mt-3">
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary btn-lg">
+          <i class="bi bi-check-lg"></i> Guardar Registro
+        </button>
+        <a href="/listar" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+      </div>
     </div>
-    {% endif %}
 
-    <div class="col-6"><label class="form-label">Atenciones</label><input type="number" min="0" name="atenciones" class="form-control" value="0"></div>
-    <div class="col-6"><label class="form-label">Ingresos</label><input type="number" min="0" name="ingresos" class="form-control" value="0"></div>
-    <div class="col-6"><label class="form-label">Alta Voluntario</label><input type="number" min="0" name="alta_voluntario" class="form-control" value="0"></div>
-    <div class="col-6"><label class="form-label">Traslados</label><input type="number" min="0" name="traslados" class="form-control" value="0"></div>
+  </form>
 
-    <div class="col-12"><label class="form-label">Motivo del traslado</label><input type="text" name="motivo_traslado" class="form-control"></div>
-    <div class="col-12"><label class="form-label">Hospital de referencia</label><input type="text" name="hospital_referencia" class="form-control"></div>
+</div>
 
-    <div class="col-6"><label class="form-label">Defunciones</label><input type="number" min="0" name="defunciones" class="form-control" value="0"></div>
-    <div class="col-12"><label class="form-label">Eventualidades</label><textarea name="eventualidades" class="form-control" rows="3" placeholder="Notas, eventualidades..."></textarea></div>
-  </div>
-
-  <div class="sticky-actions mt-3">
-    <div class="d-grid gap-2">
-      <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
-      <a href="/listar" class="btn btn-outline-secondary">Cancelar</a>
-    </div>
-  </div>
-</form>
 {% endblock %}

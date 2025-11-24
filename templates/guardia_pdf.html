@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Entrega de guardia - {{ g.fecha.strftime('%d/%m/%Y') }}</title>
+  <style>
+    /* COLORES INSTITUCIONALES DEFINIDOS DIRECTAMENTE */
+    /* Azul oscuro: rgb(10, 83, 116) */
+    /* Azul claro de fondo (10% de opacidad del azul claro): rgba(52, 175, 222, 0.1) -> #e8f4f9 */
+    /* Gris azulado oscuro: #2c3e50 */
+    /* Gris sutil para bordes: #bdc3c7 */
+    /* Fondo gris muy claro: #f8f9fa */
+    
+    /* GENERAL */
+    @page {
+      size: A4;
+      margin: 0.8cm; /* Márgenes reducidos */
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      color: #2c3e50; /* Gris azulado oscuro */
+      line-height: 1.4;
+    }
+
+    /* HEADER */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      padding-bottom: 5px;
+      border-bottom: 3px solid #e8f4f9; /* Azul claro muy sutil */
+    }
+    .header-table td {
+      vertical-align: middle;
+      padding: 0;
+    }
+    .logo {
+      max-height: 100%; 
+      width: 150px;
+    }
+    
+    .hospital-title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 13pt;
+      text-transform: uppercase;
+      color: rgb(10, 83, 116); /* Azul oscuro institucional */
+      margin-bottom: 2px;
+    }
+    .hospital-subtitle {
+      text-align: center;
+      font-size: 8.5pt;
+      color: #7f8c8d; 
+    }
+
+    /* DOCUMENT TITLE */
+    .doc-title {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: 700;
+      margin: 0 0 15px 0;
+      padding: 8px 0;
+      background-color: rgb(10, 83, 116); /* Azul oscuro institucional */
+      color: white;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* FIELD ROWS */
+    .field-row {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .field-label {
+      font-weight: 600;
+      display: inline-block;
+      min-width: 120px; 
+      color: #2c3e50; 
+    }
+    .field-value {
+      display: inline-block;
+      border-bottom: 1px solid #bdc3c7; /* Gris sutil para bordes */
+      padding: 0 4px 1px 4px;
+      min-width: 250px;
+      color: #2c3e50;
+    }
+
+    /* TABLES */
+    .table-block {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      margin-bottom: 12px;
+      border: 1px solid #bdc3c7; /* Borde exterior sutil */
+      border-radius: 4px;
+      overflow: hidden; 
+      box-shadow: none;
+    }
+    .table-block th, .table-block td {
+      border: 1px solid #ecf0f1; /* Borde interno muy claro */
+      padding: 3px 6px; 
+      font-size: 9.5pt;
+    }
+    .table-block th {
+      background-color: rgb(10, 83, 116); /* Azul oscuro institucional */
+      color: white;
+      font-weight: 600;
+      text-align: center;
+      text-transform: uppercase;
+      font-size: 8pt; /* Tamaño de fuente más pequeño para encabezados de tabla */
+      letter-spacing: 0.5px;
+    }
+    .table-block tr:nth-child(even) {
+      background-color: #fcfcfc;
+    }
+    .table-block td {
+      text-align: center;
+    }
+    /* Estilo específico del total */
+    .table-block tbody tr:first-child td:last-child { 
+      font-weight: bold; 
+      background-color: #e8f4f9 !important; /* Fondo sutil con azul claro */
+    }
+
+    /* SECTION TITLE */
+    .section-title {
+      font-weight: 700;
+      margin-top: 15px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      font-size: 10.5pt;
+      color: rgb(10, 83, 116); /* Azul oscuro institucional */
+      border-bottom: 2px solid rgb(10, 83, 116); 
+      padding-bottom: 3px;
+    }
+
+    /* MULTILINE BOX */
+    .multiline-box {
+      border: 1px solid #bdc3c7; 
+      background-color: #f8f9fa; /* Fondo gris muy claro */
+      padding: 10px;
+      min-height: 100px; 
+      font-size: 9.5pt;
+      white-space: pre-line;
+      border-radius: 4px;
+      color: #2c3e50; 
+    }
+
+    /* SIGNATURE */
+    .signature-block {
+      margin-top: 50px; 
+      text-align: center;
+      font-size: 9pt;
+    }
+    .signature-line {
+      border-top: 1px solid #2c3e50; 
+      width: 250px; 
+      margin: 0 auto 4px auto;
+    }
+
+    /* FOOTER */
+    .footer {
+      position: fixed;
+      bottom: 0.5cm;
+      left: 0.8cm;
+      right: 0.8cm;
+      font-size: 7.5pt;
+      color: #bdc3c7; 
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<table class="header-table">
+  <tr>
+    <td style="width: 25%; text-align: left;">
+      <img src="{{ url_for('static', filename='img/logo_msp.png') }}" class="logo">
+    </td>
+    <td style="width: 50%; text-align: center;">
+      <div class="hospital-title">
+        {{ g.hospital }}
+      </div>
+      <div class="hospital-subtitle">
+        Servicio de emergencias
+      </div>
+      <div class="hospital-subtitle">
+        Fecha de la guardia: {{ g.fecha.strftime('%d/%m/%Y') }}
+      </div>
+    </td>
+    <td style="width: 25%; text-align: right;">
+        {% if hosp and hosp.logo_filename %}
+        <img src="{{ url_for('static', filename=hosp.logo_filename) }}"
+       style="max-width:70px; max-height:70px;" class="logo">
+        {% endif %}
+      </td>
+  </tr>
+</table>
+
+  <div class="doc-title">
+    REPORTE DE ENTREGA DE GUARDIA
+  </div>
+
+  <div class="field-row">
+    <span class="field-label">Fecha del Reporte:</span>
+    <span class="field-value">
+      {{ g.fecha.strftime('%d/%m/%Y') }}
+    </span>
+  </div>
+
+  <div class="field-row">
+    <span class="field-label">Médico Responsable:</span>
+    <span class="field-value" style="min-width: 350px;">
+      {{ g.created_by.nombre }} {{ g.created_by.apellido }}
+    </span>
+  </div>
+
+  <div class="section-title">📊 Totales de la Guardia</div>
+  <table class="table-block">
+    <thead>
+      <tr>
+        <th colspan="4">Pacientes vistos por turno</th>
+      </tr>
+      <tr>
+        <th>Matutino</th>
+        <th>Vespertino</th>
+        <th>Nocturno</th>
+        <th>Total General</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ g.total_matutino }}</td>
+        <td>{{ g.total_vespertino }}</td>
+        <td>{{ g.total_nocturno }}</td>
+        <td style="font-weight: bold;">
+          {{ g.total_matutino + g.total_vespertino + g.total_nocturno }}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="table-block">
+    <thead>
+      <tr>
+        <th colspan="3">Distribución por tipo de paciente</th>
+      </tr>
+      <tr>
+        <th>Adultos</th>
+        <th>Pediátricos</th>
+        <th>Ginecológicas</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ g.adultos }}</td>
+        <td>{{ g.pediatricos }}</td>
+        <td>{{ g.ginecologicas }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">🚨 Indicadores de Gestión y Flujo</div>
+  <table class="table-block">
+    <thead>
+      <tr>
+        <th>Total pacientes ingresados (General)</th>
+        <th>Ingresados en emergencia (Observación)</th>
+        <th>Fallecidos</th>
+        <th>Traídos por 9-1-1</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ g.ingresados_total }}</td>
+        <td>{{ g.ingresados_en_emergencia }}</td>
+        <td>{{ g.fallecidos }}</td>
+        <td>{{ g.traidos_911 }}</td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <table class="table-block" style="width: 50%; margin-left: 0;">
+    <thead>
+      <tr>
+        <th>Pacientes de Cuidados Críticos</th>
+        <th>Referidos a otros centros</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ g.de_cuidados }}</td>
+        <td>{{ g.referidos }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">📝 Detalle de Eventualidades y Novedades durante la guardia</div>
+  <div class="multiline-box">
+    {{ g.eventualidades or 'No se registraron eventualidades o novedades significativas.' }}
+  </div>
+
+  <div class="signature-block">
+    <div class="signature-line"></div>
+    <div>**MÉDICO RESPONSABLE DE LA GUARDIA**</div>
+  </div>
+
+  <div class="footer">
+    Generado por el Sistema de Gestión Hospitalaria - Impreso: {{ generated_at.strftime('%d/%m/%Y %H:%M') }}
+  </div>
+
+</body>
+</html>

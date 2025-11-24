@@ -1,0 +1,692 @@
+{% extends "base.html" %}
+{% block title %}Internamientos{% endblock %}
+
+{% block content %}
+ <div class="card page-header-card mb-3 p-3">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+             style="width:44px;height:44px;">
+          <i class="bi bi-person-vcard text-primary fs-4"></i>
+        </div>
+        <div>
+          <h5 class="mb-0 fw-semibold">Internamiento</h5>
+          <div class="page-subtitle">
+            Registro diario de pacientes hospitalizados
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-outline-secondary btn-sm"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#filtersInternamientos">
+      <i class="bi bi-funnel"></i> Filtros
+    </button>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="small text-muted">
+      {% if current_user.hospital %}
+        <i class="bi bi-hospital"></i> {{ current_user.hospital }}
+      {% else %}
+        <i class="bi bi-hospital"></i> Red Valdesia
+      {% endif %}
+    </div>
+
+    <!-- Acciones derecha -->
+    <div class="d-flex align-items-center gap-3 ms-auto">
+
+      <a class="btn btn-primary btn-sm" href="{{ url_for('internamientos_nuevo') }}">
+        <i class="bi bi-journal-plus"></i> Nuevo internamiento
+      </a>
+
+      <!-- Acciones PDF -->
+
+      <!-- Botón PDF diario -->
+<button type="button"
+        class="btn btn-outline-danger btn-sm"
+        id="btnPdfDiario">
+  <i class="bi bi-filetype-pdf"></i> PDF diario
+</button>
+
+
+<!-- Form oculto que genera PDF -->
+<form id="formPdfInternamientos"
+      method="get"
+      action="{{ url_for('internamientos_pdf') }}"
+      target="_blank"
+      class="d-none">
+
+  <input type="hidden" name="hospital" value="{{ request.args.get('hospital','') }}">
+  <input type="hidden" name="desde" value="{{ request.args.get('desde','') }}">
+  <input type="hidden" name="hasta" value="{{ request.args.get('hasta','') }}">
+  {% if mostrar_egresados %}
+    <input type="hidden" name="egresados" value="1">
+  {% endif %}
+
+  <input type="hidden" name="observaciones_generales" id="obsGeneralInput">
+</form>
+
+
+
+      <!-- Switch egresados -->
+      <div class="d-flex align-items-center gap-2">
+        <label class="modern-switch mb-0">
+          <input type="checkbox"
+                 id="toggleEgresados"
+                 {% if mostrar_egresados %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+
+        <span id="toggleEgresadosLabel" class="fw-semibold small">
+          {% if mostrar_egresados %} Egresados: Sí {% else %} Egresados: No {% endif %}
+        </span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+
+{# ───────── LISTA MÓVIL (tarjetas) ───────── #}
+<div class="d-block d-md-none">
+  {% if internamientos %}
+    {% for i in internamientos %}
+      <div class="card mb-2 p-2 bg-white rounded-3 shadow-sm">
+
+        <div class="mrow">
+          <span class="mkey">Fecha</span>
+          <span class="mval">
+            {{ i.fecha.strftime('%Y-%m-%d') if i.fecha else '' }}
+          </span>
+        </div>
+
+        <div class="mrow">
+          <span class="mkey">Paciente</span>
+          <span class="mval">{{ i.nombre_paciente }}</span>
+        </div>
+
+        <div class="mrow">
+          <span class="mkey">Hospital</span>
+          <span class="mval">{{ i.hospital }}</span>
+        </div>
+
+        <div class="mrow">
+          <span class="mkey">Médico</span>
+          <span class="mval">
+            {% if i.created_by %}
+              {{ i.created_by.nombre }} {{ i.created_by.apellido }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </div>
+
+        <div class="mrow">
+          <span class="mkey">Área</span>
+          <span class="mval">{{ i.area or '—' }}</span>
+        </div>
+
+        <div class="mrow">
+          <span class="mkey">Habitación</span>
+          <span class="mval">{{ i.habitacion or '—' }}</span>
+        </div>
+
+        <div class="mrow">
+          <span class="mkey">Diagnósticos</span>
+          <span class="mval text-truncate">
+            {{ i.diagnosticos or '—' }}
+          </span>
+        </div>
+        
+        <div class="mrow">
+  <span class="mkey">Días ingreso</span>
+  <span class="mval">{{ i.dias_hospitalizado }}</span>
+</div>
+<div class="mrow">
+  <span class="mkey">Egresado:</span>
+ {% if i.egresado %}
+    <span class="badge bg-success">Sí</span>
+  {% else %}
+    <span class="badge bg-warning text-dark">No</span>
+  {% endif %}
+  </div>
+
+        
+
+        <div class="mt-2 d-flex justify-content-end gap-2">
+          <a href="{{ url_for('internamientos_editar', i_id=i.id) }}"
+             class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil-square"></i>
+          </a>
+          <form action="{{ url_for('internamientos_eliminar', i_id=i.id) }}"
+                method="POST"
+                onsubmit="return confirm('¿Seguro que deseas eliminar este internamiento?');">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
+
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="alert alert-light border text-center mt-3">
+      No hay internamientos registrados.
+    </div>
+  {% endif %}
+</div>
+
+
+{# ───────── TABLA ESCRITORIO (vista cebra) ───────── #}
+<div class="table-responsive d-none d-md-block">
+  <table class="table table-zebra align-middle">
+    <thead class="table-light">
+      <tr class="small text-uppercase text-muted">
+        <th>Fecha</th>
+        <th>Hospital</th>
+        <th>Paciente</th>
+        <th>Edad</th>
+        <th>Área</th>
+        <th>Habitación</th>
+        <th>Diagnósticos</th>
+        <th>Condición / Plan</th>
+        <th>Días ingreso</th>
+        <th>Egresado</th>
+        <th>Medico de Guardia</th>
+        <th>Última actualización</th>
+        <th class="text-end">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if internamientos %}
+        {% for i in internamientos %}
+        <tr>
+          <td class="small">
+            {{ i.fecha.strftime('%Y-%m-%d') if i.fecha else '' }}
+          </td>
+          <td class="small">{{ i.hospital }}</td>
+          <td class="fw-semibold">{{ i.nombre_paciente }}</td>
+          <td class="text-center small">
+            {{ i.edad if i.edad is not none else '—' }}
+          </td>
+          <td class="small">{{ i.area or '—' }}</td>
+          <td class="small">{{ i.habitacion or '—' }}</td>
+          <td class="small"
+              style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+              title="{{ i.diagnosticos or '' }}">
+            {{ i.diagnosticos or '—' }}
+          </td>
+          <td class="small"
+              style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+              title="{{ i.condicion_plan or '' }}">
+            {{ i.condicion_plan or '—' }}
+          </td>
+          <td class="text-center small">
+  {{ i.dias_hospitalizado }}
+</td>
+
+<td class="text-center small">
+  {% if i.egresado %}
+    <span class="badge bg-success">Sí</span>
+  {% else %}
+    <span class="badge bg-warning text-dark">No</span>
+  {% endif %}
+</td>
+
+          <td class="small">
+          {% if i.created_by %}
+          {{ i.created_by.nombre }} {{ i.created_by.apellido }}
+          {% else %}
+          —
+          {% endif %}
+          </td>
+          <td class="small text-muted">
+  {% if i.fecha_actualizacion %}
+    {{ i.fecha_actualizacion.strftime('%Y-%m-%d %H:%M') }}
+  {% else %}
+    —
+  {% endif %}
+</td>
+          <td class="text-end text-nowrap">
+            <a href="{{ url_for('internamientos_editar', i_id=i.id) }}"
+               class="btn btn-sm btn-outline-primary me-1">
+              <i class="bi bi-pencil-square"></i> Editar
+            </a>
+            <form action="{{ url_for('internamientos_eliminar', i_id=i.id) }}"
+                  method="POST"
+                  style="display:inline-block;"
+                  onsubmit="return confirm('¿Seguro que deseas eliminar este internamiento?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i> Eliminar
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="12" class="text-center text-muted py-4">
+            No hay internamientos registrados.
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+
+<!-- Modal confirmar observación -->
+<div class="modal fade" id="modalConfirmObs" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 shadow">
+
+      <div class="modal-header bg-primary text-white rounded-top-4">
+        <h5 class="modal-title">
+          <i class="bi bi-question-circle me-1"></i>
+          Observaciones
+        </h5>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        ¿Deseas agregar una observación general al PDF?
+      </div>
+
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary"
+                id="btnNoObs">
+          No
+        </button>
+        <button type="button" class="btn btn-primary"
+                id="btnSiObs">
+          Sí
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal escribir observación -->
+<div class="modal fade" id="modalObsPDF" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 shadow">
+
+      <div class="modal-header bg-primary text-white rounded-top-4">
+        <h5 class="modal-title">
+          <i class="bi bi-journal-text me-1"></i>
+          Observaciones generales del censo
+        </h5>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <label class="form-label fw-semibold">
+          Escribe las observaciones que deseas incluir en el PDF:
+        </label>
+        <textarea id="obsGeneralText"
+                  class="form-control"
+                  rows="5"
+                  placeholder="Ej: Pendiente interconsulta, falta estudios, etc."></textarea>
+        <div class="form-text">
+          Esto saldrá en el bloque “Observaciones generales del censo”.
+        </div>
+      </div>
+
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-danger"
+                id="btnGenerarPdfConObs">
+          <i class="bi bi-filetype-pdf"></i> Generar PDF
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+{# ───────── OFFCANVAS FILTROS ───────── #}
+<div class="offcanvas offcanvas-end" tabindex="-1" id="filtersInternamientos">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">Filtros</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="get" class="vstack gap-3">
+      {% if current_user.is_admin or current_user.is_hospital_admin %}
+      <div>
+        <label class="form-label">Hospital</label>
+        <select name="hospital" class="form-select">
+          <option value="">Todos</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}"
+                    {% if request.args.get('hospital','') == h.nombre %}selected{% endif %}>
+              {{ h.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div>
+        <label class="form-label">Desde</label>
+        <input type="date" name="desde" class="form-control"
+               value="{{ request.args.get('desde','') }}">
+      </div>
+      <div>
+        <label class="form-label">Hasta</label>
+        <input type="date" name="hasta" class="form-control"
+               value="{{ request.args.get('hasta','') }}">
+      </div>
+      <div class="d-grid gap-2 mt-2">
+        <button class="btn btn-primary">
+          <i class="bi bi-funnel"></i> Aplicar filtros
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('internamientos_list') }}">
+          Limpiar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- Modal: faltan pacientes por actualizar -->
+<div class="modal fade" id="modalFaltantesIntern" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 shadow">
+      <div class="modal-header bg-warning text-dark rounded-top-4">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Falta actualizar internamientos
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="mb-2">
+          No puedes imprimir el censo porque estos pacientes activos
+          no fueron actualizados hoy:
+        </p>
+        <ul id="listaFaltantesIntern" class="small mb-0"></ul>
+      </div>
+
+      <div class="modal-footer border-0">
+        <button type="button"
+        class="btn btn-secondary"
+        data-bs-dismiss="modal">
+  Entendido
+</button>
+
+<a type="button"
+   href="{{ url_for('internamientos_list') }}"
+   class="btn btn-primary">
+  Ir a internamientos
+</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: confirmar si desea observación -->
+<div class="modal fade" id="modalConfirmObs" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 shadow">
+      <div class="modal-header bg-primary text-white rounded-top-4">
+        <h5 class="modal-title">
+          <i class="bi bi-question-circle me-1"></i>
+          Observaciones
+        </h5>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        ¿Deseas agregar una observación general al PDF?
+      </div>
+
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" id="btnNoObs">
+          No
+        </button>
+        <button type="button" class="btn btn-primary" id="btnSiObs">
+          Sí
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: escribir observación -->
+<div class="modal fade" id="modalObsPDF" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 shadow">
+      <div class="modal-header bg-primary text-white rounded-top-4">
+        <h5 class="modal-title">
+          <i class="bi bi-journal-text me-1"></i>
+          Observaciones generales del censo
+        </h5>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <label class="form-label fw-semibold">
+          Escribe las observaciones que deseas incluir en el PDF:
+        </label>
+        <textarea id="obsGeneralText"
+                  class="form-control"
+                  rows="5"
+                  placeholder="Ej: Pendiente interconsulta, falta estudios, etc."></textarea>
+        <div class="form-text">
+          Esto saldrá en el bloque “Observaciones generales del censo”.
+        </div>
+      </div>
+
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-danger" id="btnGenerarPdfConObs">
+          <i class="bi bi-filetype-pdf"></i> Generar PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ✅ Style del switch (déjalo una sola vez en la página) -->
+<style>
+  .modern-switch {
+    position: relative;
+    width: 56px;
+    height: 28px;
+  }
+  .modern-switch input { display: none; }
+  .modern-switch .slider {
+    position: absolute;
+    cursor: pointer;
+    background: #ccc;
+    border-radius: 30px;
+    inset: 0;
+    transition: .3s;
+  }
+  .modern-switch .slider::before {
+    content: "";
+    position: absolute;
+    height: 22px; width: 22px;
+    left: 3px; bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: .3s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .modern-switch input:checked + .slider { background: #28a745; }
+  .modern-switch input:checked + .slider::before { transform: translateX(28px); }
+</style>
+
+<!-- ✅ Script dinámico -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const sw = document.getElementById("toggleEgresados");
+  const label = document.getElementById("toggleEgresadosLabel");
+
+  function actualizarLabel() {
+    label.textContent = sw.checked ? "Egresados: Sí" : "Egresados: No";
+    label.style.color = sw.checked ? "#28a745" : "#6c757d";
+  }
+
+  function aplicarFiltro() {
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+
+    if (sw.checked) params.set("egresados", "1");
+    else params.delete("egresados");
+
+    url.search = params.toString();
+    window.location.href = url.toString();
+  }
+
+  sw.addEventListener("change", () => {
+    actualizarLabel();
+    aplicarFiltro();
+  });
+
+  actualizarLabel();
+});
+</script>
+
+
+<!-- ✅ Script dinámico PDF CONFIRMAR -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const btnPdfDiario = document.getElementById("btnPdfDiario");
+
+  const modalFaltantesEl = document.getElementById("modalFaltantesIntern");
+  const modalConfirmEl   = document.getElementById("modalConfirmObs");
+  const modalObsEl       = document.getElementById("modalObsPDF");
+
+  const modalFaltantes = new bootstrap.Modal(modalFaltantesEl);
+  const modalConfirm   = new bootstrap.Modal(modalConfirmEl);
+  const modalObs       = new bootstrap.Modal(modalObsEl);
+
+  const btnSiObs = document.getElementById("btnSiObs");
+  const btnNoObs = document.getElementById("btnNoObs");
+  const btnGenerarConObs = document.getElementById("btnGenerarPdfConObs");
+  const textareaObs = document.getElementById("obsGeneralText");
+
+  let hayFaltantes = false;
+
+  function buildPdfUrl(extraParams = {}) {
+    const url = new URL("/internamientos/pdf", window.location.origin);
+    const current = new URL(window.location.href);
+
+    current.searchParams.forEach((v, k) => url.searchParams.set(k, v));
+
+    Object.entries(extraParams).forEach(([k, v]) => {
+      if (v === null || v === undefined || v === "") url.searchParams.delete(k);
+      else url.searchParams.set(k, v);
+    });
+
+    return url.toString();
+  }
+
+  async function validarAntesDePdf() {
+    const validarUrl = buildPdfUrl({ validar: "1", generar: null });
+    const res = await fetch(validarUrl);
+    return await res.json();
+  }
+
+  function mostrarFaltantes(faltantes) {
+    const ul = document.getElementById("listaFaltantesIntern");
+    ul.innerHTML = "";
+
+    faltantes.forEach(p => {
+      const li = document.createElement("li");
+      const area = [p.area, p.habitacion].filter(Boolean).join(" / ");
+      li.textContent = `${p.nombre}${area ? " (" + area + ")" : ""}`;
+      ul.appendChild(li);
+    });
+
+    hayFaltantes = true;
+
+    // 🔥 Asegura que NO quede ninguna otra modal abierta
+    modalConfirm.hide();
+    modalObs.hide();
+
+    modalFaltantes.show();
+  }
+
+  function generarPdfDirecto(obsText = "") {
+    const pdfUrl = buildPdfUrl({
+      validar: null,
+      generar: "1",
+      observaciones_generales: obsText || null
+    });
+    window.open(pdfUrl, "_blank");
+  }
+
+  btnPdfDiario.addEventListener("click", async () => {
+    try {
+      // 🔥 Limpia estado y cierra modales antes de validar
+      hayFaltantes = false;
+      textareaObs.value = "";
+      modalConfirm.hide();
+      modalObs.hide();
+      modalFaltantes.hide();
+
+      const data = await validarAntesDePdf();
+
+      if (!data.ok) {
+        mostrarFaltantes(data.faltantes || []);
+        return; // ✅ corte total: no puede abrir confirmar
+      }
+
+      // ✅ Solo aquí entra si NO hay faltantes
+      hayFaltantes = false;
+      modalConfirm.show();
+
+    } catch (err) {
+      console.error(err);
+      alert("Error validando internamientos antes de generar el PDF.");
+    }
+  });
+
+  btnNoObs.addEventListener("click", () => {
+    if (hayFaltantes) return;
+    modalConfirm.hide();
+    generarPdfDirecto("");
+  });
+
+  btnSiObs.addEventListener("click", () => {
+    if (hayFaltantes) return;
+    modalConfirm.hide();
+    modalObs.show();
+  });
+
+  btnGenerarConObs.addEventListener("click", () => {
+    if (hayFaltantes) return;
+    const txt = (textareaObs.value || "").trim();
+    modalObs.hide();
+    generarPdfDirecto(txt);
+  });
+});
+</script>
+
+
+
+
+{% endblock %}

@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar internamiento' if ir else 'Nuevo internamiento' }}{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 720px;">
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-header bg-primary text-white rounded-top-4">
+      <h5 class="mb-0 d-flex align-items-center">
+        <i class="bi bi-hospital me-2"></i>
+        {{ 'Editar internamiento' if ir else 'Nuevo internamiento' }}
+      </h5>
+    </div>
+
+    <div class="card-body">
+      <form method="POST"
+            action="{% if ir %}{{ url_for('internamientos_editar', i_id=ir.id) }}{% else %}{{ url_for('internamientos_nuevo') }}{% endif %}"
+            class="row g-3">
+
+        {# ───── Bloque: Datos básicos ───── #}
+        <div class="col-12">
+          <div class="form-section-title small text-uppercase text-muted mb-1">
+            Datos básicos
+          </div>
+        </div>
+
+        <div class="col-6">
+          <label class="form-label fw-semibold">Fecha de ingreso</label>
+          <input type="date"
+                 name="fecha"
+                 class="form-control"
+                 value="{% if ir and ir.fecha %}{{ ir.fecha.strftime('%Y-%m-%d') }}{% else %}{{ hoy }}{% endif %}"
+                 required>
+        </div>
+
+        {% if current_user.is_admin or current_user.is_hospital_admin %}
+        <div class="col-6">
+          <label class="form-label fw-semibold">Hospital</label>
+          <select name="hospital" class="form-select" required>
+            <option value="">Seleccione…</option>
+            {% for h in HOSPITALES %}
+              <option value="{{ h.nombre }}"
+                      {% if ir and ir.hospital == h.nombre %}
+                        selected
+                      {% elif not ir and current_user.hospital == h.nombre %}
+                        selected
+                      {% endif %}>
+                {{ h.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% else %}
+        <div class="col-6">
+          <label class="form-label fw-semibold">Hospital</label>
+          <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
+          <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+        </div>
+        {% endif %}
+
+        {# ───── Bloque: Paciente ───── #}
+        <div class="col-12 mt-2">
+          <div class="form-section-title small text-uppercase text-muted mb-1">
+            Datos del paciente
+          </div>
+        </div>
+
+        <div class="col-md-8 col-12">
+          <label class="form-label fw-semibold">Nombre del paciente</label>
+          <input type="text"
+                 name="nombre_paciente"
+                 class="form-control"
+                 value="{{ ir.nombre_paciente if ir else '' }}"
+                 required>
+        </div>
+
+        <div class="col-md-4 col-6">
+          <label class="form-label fw-semibold">Edad</label>
+          <input type="number"
+                 name="edad"
+                 min="0"
+                 step="1"
+                 class="form-control"
+                 value="{% if ir and ir.edad is not none %}{{ ir.edad }}{% endif %}">
+        </div>
+
+        <div class="col-md-4 col-6">
+          <label class="form-label fw-semibold">Área</label>
+          <input type="text"
+                 name="area"
+                 class="form-control"
+                 value="{{ ir.area if ir else '' }}"
+                 placeholder="Ej. Medicina interna">
+        </div>
+
+        <div class="col-md-4 col-6">
+          <label class="form-label fw-semibold">Habitación / Cama</label>
+          <input type="text"
+                 name="habitacion"
+                 class="form-control"
+                 value="{{ ir.habitacion if ir else '' }}"
+                 placeholder="Ej. 302-B">
+        </div>
+
+        <div class="col-md-4 col-6">
+
+  <label class="form-label fw-semibold">Días hospitalizado</label>
+  <input type="text"
+         class="form-control"
+         value="{% if ir %}{{ ir.dias_hospitalizado }}{% else %}1{% endif %}"
+         readonly>
+
+
+
+        </div>
+
+        {# ───── Bloque: Detalles clínicos ───── #}
+        <div class="col-12 mt-2">
+          <div class="form-section-title small text-uppercase text-muted mb-1">
+            Detalle clínico
+          </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Signos vitales</label>
+          <textarea name="signos_vitales"
+                    class="form-control"
+                    rows="2"
+                    placeholder="PA, FC, FR, SatO₂, T°…">{{ ir.signos_vitales if ir else '' }}</textarea>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Diagnósticos</label>
+          <textarea name="diagnosticos"
+                    class="form-control"
+                    rows="2"
+                    placeholder="Diagnóstico(s) principal(es)…">{{ ir.diagnosticos if ir else '' }}</textarea>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Condición / Plan</label>
+          <textarea name="condicion_plan"
+                    class="form-control"
+                    rows="2"
+                    placeholder="Condición actual, conducta, planes de manejo…">{{ ir.condicion_plan if ir else '' }}</textarea>
+        </div>
+
+        {# ───── Bloque: Origen y observaciones ───── #}
+        <div class="col-12 mt-2">
+          <div class="form-section-title small text-uppercase text-muted mb-1">
+            Origen y observaciones
+          </div>
+        </div>
+
+        <div class="col-md-6 col-12">
+          <label class="form-label fw-semibold">Origen del ingreso</label>
+          <select name="origen_ingreso"
+        id="origen_ingreso"
+        class="form-select"
+        required>
+  <option value="">Seleccione...</option>
+  <option value="Emergencia"
+          {% if ir and ir.origen_ingreso == "Emergencia" %}selected{% endif %}>
+      Emergencia
+  </option>
+  <option value="Consulta Externa"
+          {% if ir and ir.origen_ingreso == "Consulta Externa" %}selected{% endif %}>
+      Consulta Externa
+  </option>
+</select>
+
+        </div>
+
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Observaciones</label>
+          <textarea name="observaciones"
+                    class="form-control"
+                    rows="3"
+                    placeholder="Notas adicionales relevantes…">{{ ir.observaciones if ir else '' }}</textarea>
+        </div>
+
+      {% if ir %}
+<style>
+/* --- Switch moderno estilo iOS --- */
+.modern-switch {
+  position: relative;
+  width: 56px;
+  height: 28px;
+}
+.modern-switch input {
+  display: none;
+}
+.modern-switch .slider {
+  position: absolute;
+  cursor: pointer;
+  background: #ccc;
+  border-radius: 30px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: .3s;
+}
+.modern-switch .slider::before {
+  content: "";
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: .3s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.modern-switch input:checked + .slider {
+  background: #28a745;
+}
+.modern-switch input:checked + .slider::before {
+  transform: translateX(28px);
+}
+</style>
+
+<div class="col-md-6 col-12">
+  <label class="form-label fw-semibold d-block mb-1">Paciente egresado</label>
+
+  <div class="d-flex align-items-center gap-3">
+
+    <!-- Switch moderno -->
+    <label class="modern-switch">
+      <input type="checkbox"
+             id="egresado"
+             name="egresado"
+             {% if ir.egresado %}checked{% endif %}>
+      <span class="slider"></span>
+    </label>
+
+    <!-- Etiqueta dinámica -->
+    <span id="egresado_label"
+          class="fw-semibold"
+          style="font-size: 1rem;">
+      {{ "Sí" if ir.egresado else "No" }}
+    </span>
+
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const sw = document.getElementById("egresado");
+  const label = document.getElementById("egresado_label");
+
+  function updateSwitch() {
+    label.textContent = sw.checked ? "Sí" : "No";
+    label.style.color = sw.checked ? "#28a745" : "#6c757d";
+  }
+
+  sw.addEventListener("change", updateSwitch);
+  updateSwitch(); // Inicializa
+});
+</script>
+{% endif %}
+
+
+
+
+
+        {# ───── Botones de acción ───── #}
+        <div class="col-12 mt-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <a href="{{ url_for('internamientos_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+          </a>
+
+          <div class="d-flex gap-2">
+            {% if ir %}
+            <form action="{{ url_for('internamientos_eliminar', i_id=ir.id) }}"
+                  method="POST"
+                  onsubmit="return confirm('¿Seguro que deseas eliminar este internamiento? Esta acción no se puede deshacer.');">
+              <button type="submit" class="btn btn-outline-danger">
+                <i class="bi bi-trash"></i> Eliminar
+              </button>
+            </form>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save2"></i>
+              {{ 'Guardar cambios' if ir else 'Guardar internamiento' }}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

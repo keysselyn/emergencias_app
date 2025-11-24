@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar usuario' if u else 'Nuevo usuario' }}{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 600px;">
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-header bg-primary text-white rounded-top-4">
+      <h5 class="mb-0">
+        {% if u %}Editar usuario{% else %}Nuevo usuario{% endif %}
+      </h5>
+    </div>
+    <div class="card-body">
+      <form method="POST" class="row g-3">
+        
+        <!-- Usuario -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">Nombre de usuario</label>
+          <input type="text"
+                 name="username"
+                 class="form-control"
+                 value="{{ u.username if u else '' }}"
+                 required>
+        </div>
+
+        <!-- Hospital asignado -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">Hospital asignado</label>
+
+          {% if current_user.is_admin %}
+            <select name="hospital" class="form-select">
+              <option value="">(Sin hospital)</option>
+              {% for h in HOSPITALES %}
+                <option value="{{ h.nombre }}"
+                  {% if u and u.hospital == h.nombre %}selected{% endif %}>
+                  {{ h.nombre }}
+                </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              El usuario solo verá y gestionará registros de este hospital (si no es Admin).
+            </div>
+          {% else %}
+            <!-- Admin de hospital: fijo a su propio hospital -->
+            <input type="text" class="form-control"
+                   value="{{ u.hospital if u else current_user.hospital }}"
+                   disabled>
+            <input type="hidden" name="hospital"
+                   value="{{ u.hospital if u else current_user.hospital }}">
+            <div class="form-text">
+              Como administrador de hospital, solo puede asignar usuarios a su propio centro.
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Roles -->
+<div class="col-12">
+  {% if current_user.is_admin %}
+    <!-- Puede gestionar los dos niveles de rol -->
+    <div class="form-check mb-1">
+      <input class="form-check-input"
+             type="checkbox"
+             name="is_admin"
+             id="is_admin"
+             {% if u and u.is_admin %}checked{% endif %}>
+      <label class="form-check-label fw-semibold" for="is_admin">
+        Administrador general
+      </label>
+    </div>
+
+    <div class="form-check">
+      <input class="form-check-input"
+             type="checkbox"
+             name="is_hospital_admin"
+             id="is_hospital_admin"
+             {% if u and u.is_hospital_admin %}checked{% endif %}>
+      <label class="form-check-label fw-semibold" for="is_hospital_admin">
+        Administrador de hospital
+      </label>
+    </div>
+
+    <div class="form-text">
+      El administrador general ve toda la red. El administrador de hospital gestiona solo su hospital.
+    </div>
+
+  {% elif current_user.is_hospital_admin %}
+    <!-- Admin de hospital NO puede crear Admin general -->
+    <div class="form-check mb-1">
+      <input class="form-check-input" type="checkbox" disabled>
+      <label class="form-check-label text-muted">
+        Administrador general (solo configurable a nivel central)
+      </label>
+    </div>
+
+    <div class="form-check">
+      <input class="form-check-input"
+             type="checkbox"
+             name="is_hospital_admin"
+             id="is_hospital_admin"
+             {% if u and u.is_hospital_admin %}checked{% endif %}>
+      <label class="form-check-label fw-semibold" for="is_hospital_admin">
+        Administrador de hospital
+      </label>
+    </div>
+
+    <div class="form-text">
+      Puedes marcar si este usuario también será administrador de tu hospital.
+    </div>
+  {% endif %}
+</div>
+
+
+        <!-- Contraseña -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            {% if u %}Nueva contraseña (opcional){% else %}Contraseña{% endif %}
+          </label>
+          <input type="password"
+                 name="password1"
+                 class="form-control"
+                 {% if not u %}required{% endif %}>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Confirmar contraseña</label>
+          <input type="password"
+                 name="password2"
+                 class="form-control"
+                 {% if not u %}required{% endif %}>
+        </div>
+ <!-- Datos Personales  -->
+
+      <h6 class="fw-bold mt-3">Datos personales</h6>
+
+<div class="row g-2">
+  <div class="col-6">
+    <label class="form-label">Nombre</label>
+    <input type="text" name="nombre" class="form-control" value="{{ u.nombre if u else '' }}">
+  </div>
+
+  <div class="col-6">
+    <label class="form-label">Apellido</label>
+    <input type="text" name="apellido" class="form-control" value="{{ u.apellido if u else '' }}">
+  </div>
+
+  <div class="col-6">
+    <label class="form-label">Cédula</label>
+    <input type="text" name="cedula" class="form-control" value="{{ u.cedula if u else '' }}">
+  </div>
+
+  <div class="col-6">
+    <label class="form-label">Teléfono</label>
+    <input type="text" name="telefono" class="form-control" value="{{ u.telefono if u else '' }}">
+  </div>
+
+  <div class="col-12">
+    <label class="form-label">Correo electrónico</label>
+    <input type="email" name="email" class="form-control" value="{{ u.email if u else '' }}">
+  </div>
+
+  <div class="col-6">
+    <label class="form-label">Especialidad</label>
+    <input type="text" name="especialidad" class="form-control" value="{{ u.especialidad if u else '' }}">
+  </div>
+
+  <div class="col-6">
+    <label class="form-label">Cargo</label>
+    <input type="text" name="cargo" class="form-control" value="{{ u.cargo if u else '' }}">
+  </div>
+
+  <div class="col-6">
+    <label class="form-label">Exequatur (CMD)</label>
+    <input type="text" name="exequatur" class="form-control" value="{{ u.exequatur if u else '' }}">
+  </div>
+</div>
+
+
+        <!-- Botones -->
+        <div class="col-12 d-flex justify-content-between mt-2">
+          <a href="{{ url_for('usuarios_list') }}" class="btn btn-outline-secondary">
+            Volver
+          </a>
+          <button type="submit" class="btn btn-primary">
+            {% if u %}Guardar cambios{% else %}Crear usuario{% endif %}
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

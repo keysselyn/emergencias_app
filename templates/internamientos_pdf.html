@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Reporte diario internamientos - {{ fecha_reporte.strftime('%d/%m/%Y') }}</title>
+
+  <style>
+    /* COLORES INSTITUCIONALES */
+    /* Azul oscuro: rgb(10, 83, 116) */
+    /* Azul claro fondo: #e8f4f9 */
+    /* Gris azulado oscuro: #2c3e50 */
+    /* Gris bordes: #bdc3c7 */
+    /* Fondo gris claro: #f8f9fa */
+
+    @page {
+      size: A4;
+      margin: 0.8cm;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      color: #2c3e50;
+      line-height: 1.4;
+    }
+
+    /* HEADER */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      padding-bottom: 5px;
+      border-bottom: 3px solid #e8f4f9;
+    }
+    .header-table td {
+      vertical-align: middle;
+      padding: 0;
+    }
+    .logo {
+      max-height: 100%;
+      width: 150px;
+    }
+    .hospital-title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 13pt;
+      text-transform: uppercase;
+      color: rgb(10, 83, 116);
+      margin-bottom: 2px;
+    }
+    .hospital-subtitle {
+      text-align: center;
+      font-size: 8.5pt;
+      color: #7f8c8d;
+    }
+
+    /* DOCUMENT TITLE */
+    .doc-title {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: 700;
+      margin: 0 0 15px 0;
+      padding: 8px 0;
+      background-color: rgb(10, 83, 116);
+      color: white;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* FIELD ROWS */
+    .field-row {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .field-label {
+      font-weight: 600;
+      display: inline-block;
+      min-width: 140px;
+      color: #2c3e50;
+    }
+    .field-value {
+      display: inline-block;
+      border-bottom: 1px solid #bdc3c7;
+      padding: 0 4px 1px 4px;
+      min-width: 250px;
+      color: #2c3e50;
+    }
+
+    /* TABLES */
+    .table-block {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      margin-bottom: 12px;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .table-block th, .table-block td {
+      border: 1px solid #ecf0f1;
+      padding: 3px 6px;
+      font-size: 9.3pt;
+      vertical-align: top;
+    }
+    .table-block th {
+      background-color: rgb(10, 83, 116);
+      color: white;
+      font-weight: 600;
+      text-align: center;
+      text-transform: uppercase;
+      font-size: 8pt;
+      letter-spacing: 0.5px;
+    }
+    .table-block tr:nth-child(even) {
+      background-color: #fcfcfc;
+    }
+
+    /* SECTION TITLE */
+    .section-title {
+      font-weight: 700;
+      margin-top: 15px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      font-size: 10.5pt;
+      color: rgb(10, 83, 116);
+      border-bottom: 2px solid rgb(10, 83, 116);
+      padding-bottom: 3px;
+    }
+
+    /* MULTILINE BOX */
+    .multiline-box {
+      border: 1px solid #bdc3c7;
+      background-color: #f8f9fa;
+      padding: 10px;
+      min-height: 80px;
+      font-size: 9.5pt;
+      white-space: pre-line;
+      border-radius: 4px;
+      color: #2c3e50;
+    }
+
+    /* SIGNATURE */
+    .signature-block {
+      margin-top: 45px;
+      text-align: center;
+      font-size: 9pt;
+    }
+    .signature-line {
+      border-top: 1px solid #2c3e50;
+      width: 250px;
+      margin: 0 auto 4px auto;
+    }
+
+    /* FOOTER */
+    .footer {
+      position: fixed;
+      bottom: 0.5cm;
+      left: 0.8cm;
+      right: 0.8cm;
+      font-size: 7.5pt;
+      color: #bdc3c7;
+      text-align: right;
+    }
+
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .small { font-size: 8.5pt; color: #555; }
+    .nowrap { white-space: nowrap; }
+    .badge {
+      font-size: 8pt;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      display: inline-block;
+      border: 1px solid transparent;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .badge-activo {
+      background: #e8f4f9;
+      color: rgb(10,83,116);
+      border-color: #cfe8f3;
+    }
+    .badge-egresado {
+      background: #fdecec;
+      color: #b02a37;
+      border-color: #f5c2c7;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER CON LOGOS -->
+  <table class="header-table">
+    <tr>
+      <td style="width: 25%; text-align: left;">
+        <img src="{{ url_for('static', filename='img/logo_msp.png') }}" class="logo">
+      </td>
+
+      <td style="width: 50%; text-align: center;">
+        <div class="hospital-title">
+          {{ hosp.nombre if hosp else (current_user.hospital or 'Red Valdesia') }}
+        </div>
+        <div class="hospital-subtitle">
+          Reporte diario de internamientos
+        </div>
+        <div class="hospital-subtitle">
+          Fecha del reporte: {{ fecha_reporte.strftime('%d/%m/%Y') }}
+        </div>
+      </td>
+
+      <td style="width: 25%; text-align: right;">
+        {% if hosp and hosp.logo_filename %}
+          <img src="{{ url_for('static', filename=hosp.logo_filename) }}"
+               style="max-width:70px; max-height:70px;" class="logo">
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <div class="doc-title">
+    REPORTE DIARIO DE INTERNAMIENTOS
+  </div>
+
+  <!-- METADATA -->
+  <div class="field-row">
+    <span class="field-label">Fecha del Reporte:</span>
+    <span class="field-value">{{ fecha_reporte.strftime('%d/%m/%Y') }}</span>
+  </div>
+
+  <div class="field-row">
+    <span class="field-label">Generado por:</span>
+    <span class="field-value" style="min-width: 350px;">
+      {{ current_user.nombre }} {{ current_user.apellido }}
+    </span>
+  </div>
+
+  <div class="field-row">
+    <span class="field-label">Total pacientes:</span>
+    <span class="field-value">{{ internamientos|length }}</span>
+  </div>
+
+  <!-- TABLA PRINCIPAL -->
+  <div class="section-title">🏥 Pacientes hospitalizados</div>
+
+<table class="table-block">
+  <thead>
+    <tr>
+      <th style="width:110px;">Área</th>
+      <th style="width:210px;">Nombre del paciente</th>
+      <th style="width:45px;">Edad</th>
+      <th>Diagnósticos</th>
+      <th>Condición / Plan</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% if internamientos %}
+      {% for i in internamientos %}
+      <tr>
+
+        <!-- ÁREA: Área + Habitación/Cama -->
+        <td class="small">
+          <b>{{ i.area or '—' }}</b><br>
+          <span class="muted">Hab/Cama:</span> {{ i.habitacion or '—' }}
+        </td>
+
+        <!-- NOMBRE PACIENTE: Nombre + Signos Vitales + Días ingreso -->
+        <td class="small">
+          <b>{{ i.nombre_paciente }}</b><br>
+          {% if i.signos_vitales %}
+            <span class="muted"><b>SV:</b></span> {{ i.signos_vitales }}<br>
+          {% endif %}
+          <span class="muted"><b>Días de ingres:</b></span>
+          {{ i.dias_hospitalizado if i.dias_hospitalizado is not none else (i.dia_ingreso or 0) }}
+        </td>
+
+        <!-- EDAD -->
+        <td class="text-center nowrap">
+          {{ i.edad if i.edad is not none else '—' }}
+        </td>
+
+        <!-- DIAGNÓSTICOS -->
+        <td class="small">
+          {{ i.diagnosticos or '—' }}
+        </td>
+
+        <!-- CONDICIÓN / PLAN -->
+        <td class="small">
+          {{ i.condicion_plan or '—' }}
+        </td>
+
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="5" class="text-center small">
+          No hay pacientes internados para este reporte.
+        </td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+
+  <!-- SECCIÓN OBSERVACIONES GENERALES (si quieres poner algo global del censo) -->
+  <div class="section-title">📝 Observaciones generales</div>
+  <div class="multiline-box">
+    {{ observaciones_generales or "No se registraron observaciones generales." }}
+  </div>
+
+  <!-- FIRMA -->
+  <div class="signature-block">
+    <div class="signature-line"></div>
+    <div><b>MÉDICO RESPONSABLE </b></div>
+  </div>
+
+  <div class="footer">
+    Generado por el Sistema de Gestión Hospitalaria - Impreso: {{ generated_at.strftime('%d/%m/%Y %H:%M') }}
+  </div>
+
+</body>
+</html>

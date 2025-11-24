@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Nueva Guardia{% endblock %}
+
+{% block content %}
+<form method="POST" class="card p-3 shadow-sm border-0 rounded-4">
+
+  <h5 class="mb-2">
+    <i class="bi bi-clipboard-plus"></i> Nueva guardia
+  </h5>
+
+  <div class="form-section-title">Información general</div>
+
+  <div class="row g-3">
+
+    <!-- Fecha -->
+    <div class="col-6">
+      <label class="form-label">Fecha</label>
+      <input type="date" class="form-control" name="fecha" required>
+    </div>
+
+    {% if current_user.is_admin or current_user.is_hospital_admin %}
+      <div class="col-12">
+        <label class="form-label">Hospital</label>
+        <select name="hospital" class="form-select" required>
+          <option value="">Seleccione...</option>
+          {% for h in HOSPITALES %}
+            <option value="{{ h.nombre }}">{{ h.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% else %}
+      <div class="col-12">
+        <label class="form-label">Hospital</label>
+        <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
+        <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+      </div>
+    {% endif %}
+
+    <div class="form-section-title">Resumen de atenciones</div>
+
+    <div class="col-4"><label class="form-label">Matutino</label><input name="total_matutino" type="number" class="form-control" value="0"></div>
+    <div class="col-4"><label class="form-label">Vespertino</label><input name="total_vespertino" type="number" class="form-control" value="0"></div>
+    <div class="col-4"><label class="form-label">Nocturno</label><input name="total_nocturno" type="number" class="form-control" value="0"></div>
+
+    <div class="form-section-title">Clasificación</div>
+
+    <div class="col-4"><label class="form-label">Adultos</label><input name="adultos" type="number" class="form-control" value="0"></div>
+    <div class="col-4"><label class="form-label">Pediátricos</label><input name="pediatricos" type="number" class="form-control" value="0"></div>
+    <div class="col-4"><label class="form-label">Ginec.</label><input name="ginecologicas" type="number" class="form-control" value="0"></div>
+
+    <div class="form-section-title">Ingresos</div>
+
+    <div class="col-6"><label class="form-label">Ingresados total</label><input name="ingresados_total" type="number" class="form-control" value="0"></div>
+    <div class="col-6"><label class="form-label">Ingresados en emergencia</label><input name="ingresados_en_emergencia" type="number" class="form-control" value="0"></div>
+
+    <div class="col-4"><label class="form-label">Fallecidos</label><input name="fallecidos" type="number" class="form-control" value="0"></div>
+    <div class="col-4"><label class="form-label">Traídos 911</label><input name="traidos_911" type="number" class="form-control" value="0"></div>
+    <div class="col-4"><label class="form-label">Desde Cuidados</label><input name="de_cuidados" type="number" class="form-control" value="0"></div>
+
+    <div class="col-12"><label class="form-label">Referidos</label><input name="referidos" type="number" class="form-control" value="0"></div>
+
+    <div class="col-12"><label class="form-label">Eventualidades</label><textarea name="eventualidades" class="form-control" rows="3"></textarea></div>
+
+    <div class="col-12"><label class="form-label">Firma</label><input name="firma" type="text" class="form-control"></div>
+
+  </div>
+
+  <div class="sticky-actions mt-3">
+    <div class="d-grid gap-2">
+      <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a href="{{ url_for('guardias_list') }}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </div>
+
+</form>
+{% endblock %}
