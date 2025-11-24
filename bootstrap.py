@@ -9,9 +9,7 @@ Compatible con PostgreSQL y MySQL/MariaDB.
 """
 
 import sys
-from datetime import datetime
 from sqlalchemy import inspect, text
-from sqlalchemy.exc import ProgrammingError, OperationalError
 
 # Importa tu app y db ya configuradas
 from app import app, db
@@ -20,6 +18,17 @@ import models  # asegura que los modelos estén cargados
 
 def log(msg):
     print(f"[BOOTSTRAP] {msg}")
+
+
+def qi(dialect: str, name: str) -> str:
+    """
+    Quote Identifiers para evitar choques con reservadas
+    y respetar case/char especiales.
+    """
+    if dialect.startswith("postgres"):
+        return f'"{name}"'
+    # mysql / mariadb
+    return f"`{name}`"
 
 
 def has_table(inspector, table_name):
@@ -43,36 +52,51 @@ def add_column(conn, dialect, table, col, coltype_sql, default_sql=None, nullabl
 
     null_sql = "NULL" if nullable else "NOT NULL"
     default_part = f" DEFAULT {default_sql}" if default_sql is not None else ""
-    sql = f"ALTER TABLE {table} ADD COLUMN {col} {coltype_sql} {null_sql}{default_part};"
+
+    t = qi(dialect, table)
+    c = qi(dialect, col)
+
+    sql = f"ALTER TABLE {t} ADD COLUMN {c} {coltype_sql} {null_sql}{default_part};"
     log(f"Ejecutando: {sql}")
     conn.execute(text(sql))
 
 
-def alter_column_type(conn, table, col, newtype_sql):
+def alter_column_type(conn, dialect, table, col, newtype_sql, using_sql=None):
+    """
+    Cambia tipo de columna si existe.
+    En Postgres puedes pasar using_sql para casting seguro.
+    """
     insp = inspect(conn)
     if not has_column(insp, table, col):
         log(f"No se altera tipo porque columna no existe: {table}.{col}")
         return
 
-    dialect = conn.dialect.name
+    t = qi(dialect, table)
+    c = qi(dialect, col)
+
     if dialect.startswith("postgres"):
-        sql = f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {newtype_sql};"
+        using_part = f" USING {using_sql}" if using_sql else ""
+        sql = f"ALTER TABLE {t} ALTER COLUMN {c} TYPE {newtype_sql}{using_part};"
     else:
-        # mysql / mariadb / sqlite
-        sql = f"ALTER TABLE {table} MODIFY COLUMN {col} {newtype_sql};"
+        # mysql / mariadb
+        sql = f"ALTER TABLE {t} MODIFY COLUMN {c} {newtype_sql};"
+
     log(f"Ejecutando: {sql}")
     conn.execute(text(sql))
 
 
-def add_index(conn, table, index_name, cols):
+def add_index(conn, dialect, table, index_name, cols):
     insp = inspect(conn)
     existing = {ix["name"] for ix in insp.get_indexes(table)}
     if index_name in existing:
         log(f"Índice ya existe: {index_name}")
         return
 
-    cols_sql = ", ".join(cols)
-    sql = f"CREATE INDEX {index_name} ON {table} ({cols_sql});"
+    t = qi(dialect, table)
+    cols_sql = ", ".join(qi(dialect, c) for c in cols)
+    ix = qi(dialect, index_name)
+
+    sql = f"CREATE INDEX {ix} ON {t} ({cols_sql});"
     log(f"Ejecutando: {sql}")
     conn.execute(text(sql))
 
@@ -86,7 +110,7 @@ def ensure_schema():
             db.create_all()
             log("db.create_all() completado.")
         except Exception as e:
-            log(f"create_all falló (se continúa): {e}")
+            log(f"create_all falló (se continúa): {type(e).__name__}: {e}")
 
         engine = db.engine
         dialect = engine.dialect.name
@@ -99,46 +123,67 @@ def ensure_schema():
             # INTERNAMIENTOS
             # ------------------------------
             if has_table(insp, "internamientos"):
+
                 # fecha_actualizacion
                 add_column(
                     conn, dialect, "internamientos", "fecha_actualizacion",
                     "DATETIME" if not dialect.startswith("postgres") else "TIMESTAMP"
                 )
+
                 # egresado boolean
                 if dialect.startswith("postgres"):
-                    add_column(conn, dialect, "internamientos", "egresado", "BOOLEAN", default_sql="FALSE", nullable=False)
+                    add_column(
+                        conn, dialect, "internamientos", "egresado",
+                        "BOOLEAN", default_sql="FALSE", nullable=False
+                    )
                 else:
-                    add_column(conn, dialect, "internamientos", "egresado", "TINYINT(1)", default_sql="0", nullable=False)
+                    add_column(
+                        conn, dialect, "internamientos", "egresado",
+                        "TINYINT(1)", default_sql="0", nullable=False
+                    )
 
-                # dia_ingreso int (si venía como date en versiones viejas)
-                alter_column_type(conn, "internamientos", "dia_ingreso", "INTEGER" if dialect.startswith("postgres") else "INT")
+                # dia_ingreso int (si venía como date/text en versiones viejas)
+                # - Postgres: intenta cast seguro si no es int aún.
+                if dialect.startswith("postgres"):
+                    alter_column_type(
+                        conn, dialect, "internamientos", "dia_ingreso", "INTEGER",
+                        using_sql="NULLIF(dia_ingreso::text,'')::integer"
+                    )
+                else:
+                    alter_column_type(
+                        conn, dialect, "internamientos", "dia_ingreso", "INT"
+                    )
 
                 # índice fecha+hospital (si no existe)
                 try:
-                    add_index(conn, "internamientos", "ix_internamiento_fecha_hospital", ["fecha", "hospital"])
+                    add_index(
+                        conn, dialect, "internamientos",
+                        "ix_internamiento_fecha_hospital",
+                        ["fecha", "hospital"]
+                    )
                 except Exception as e:
-                    log(f"No se pudo crear índice ix_internamiento_fecha_hospital: {e}")
+                    log(f"No se pudo crear índice ix_internamiento_fecha_hospital: {type(e).__name__}: {e}")
 
                 # backfill fecha_actualizacion para viejos
                 try:
                     insp2 = inspect(conn)
                     if has_column(insp2, "internamientos", "fecha_actualizacion"):
                         if dialect.startswith("postgres"):
-                            sql = """
-                                UPDATE internamientos
-                                SET fecha_actualizacion = fecha::timestamp
-                                WHERE fecha_actualizacion IS NULL;
+                            sql = f"""
+                                UPDATE {qi(dialect,'internamientos')}
+                                SET {qi(dialect,'fecha_actualizacion')} = {qi(dialect,'fecha')}::timestamp
+                                WHERE {qi(dialect,'fecha_actualizacion')} IS NULL;
                             """
                         else:
-                            sql = """
-                                UPDATE internamientos
-                                SET fecha_actualizacion = CONCAT(fecha, ' 00:00:00')
-                                WHERE fecha_actualizacion IS NULL;
+                            sql = f"""
+                                UPDATE {qi(dialect,'internamientos')}
+                                SET {qi(dialect,'fecha_actualizacion')} = CONCAT({qi(dialect,'fecha')}, ' 00:00:00')
+                                WHERE {qi(dialect,'fecha_actualizacion')} IS NULL;
                             """
                         log("Backfill fecha_actualizacion (solo NULLs).")
                         conn.execute(text(sql))
                 except Exception as e:
-                    log(f"Backfill fecha_actualizacion falló: {e}")
+                    log(f"Backfill fecha_actualizacion falló: {type(e).__name__}: {e}")
 
             else:
                 log("Tabla internamientos no existe; create_all debió crearla.")
@@ -148,24 +193,35 @@ def ensure_schema():
             # ------------------------------
             if has_table(insp, "guardias_emergencia"):
                 try:
-                    add_index(conn, "guardias_emergencia", "ix_guardia_fecha_hospital", ["fecha", "hospital"])
+                    add_index(
+                        conn, dialect, "guardias_emergencia",
+                        "ix_guardia_fecha_hospital",
+                        ["fecha", "hospital"]
+                    )
                 except Exception as e:
-                    log(f"No se pudo crear índice guardias_emergencia: {e}")
+                    log(f"No se pudo crear índice guardias_emergencia: {type(e).__name__}: {e}")
 
             # ------------------------------
             # EMERGENCY_RECORDS
             # ------------------------------
             if has_table(insp, "emergency_records"):
                 try:
-                    add_index(conn, "emergency_records", "ix_emergency_fecha_hospital", ["fecha", "hospital"])
+                    add_index(
+                        conn, dialect, "emergency_records",
+                        "ix_emergency_fecha_hospital",
+                        ["fecha", "hospital"]
+                    )
                 except Exception as e:
-                    log(f"No se pudo crear índice emergency_records: {e}")
+                    log(f"No se pudo crear índice emergency_records: {type(e).__name__}: {e}")
 
             # ------------------------------
             # HOSPITALS: logo_filename
             # ------------------------------
             if has_table(insp, "hospitals"):
-                add_column(conn, dialect, "hospitals", "logo_filename", "VARCHAR(255)")
+                add_column(
+                    conn, dialect, "hospitals", "logo_filename",
+                    "VARCHAR(255)"
+                )
 
         log("Bootstrap finalizado sin errores fatales.")
 
@@ -174,6 +230,6 @@ if __name__ == "__main__":
     try:
         ensure_schema()
     except Exception as e:
-        log(f"Bootstrap terminó con error: {e}")
+        log(f"Bootstrap terminó con error: {type(e).__name__}: {e}")
         # no abortar el deploy: salimos 0
         sys.exit(0)

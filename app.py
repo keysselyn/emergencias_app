@@ -1,15 +1,13 @@
+# app.py (LIMPIO Y FUNCIONAL)
+
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, Response,
-<<<<<<< HEAD
-    send_from_directory, abort, jsonify
-=======
-    send_from_directory, abort
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
+    send_from_directory, abort, jsonify, make_response, current_app
 )
 from flask_login import (
     LoginManager, login_user, logout_user, current_user, login_required
 )
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from io import StringIO, BytesIO
 from functools import wraps
 import csv, json, os
@@ -19,28 +17,30 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, NamedStyle
 from openpyxl.utils import get_column_letter
 
-from sqlalchemy import text  # para /healthz
-<<<<<<< HEAD
+from sqlalchemy import text
+from sqlalchemy.orm import joinedload
 
 from xhtml2pdf import pisa
-from flask import make_response, current_app
-import os
-
 from werkzeug.utils import secure_filename
 
 from models import db, User, Hospital, EmergencyRecord, GuardiaEmergencia, Internamiento
 
-# ================== CONFIG MYSQL / RAILWAY ==================
+
+# ==============================
+# APP CONFIG
+# ==============================
 app = Flask(__name__)
 
-# --- Logo folder config ---
-LOGOS_SUBFOLDER = "img"  # subcarpeta dentro de /static
-UPLOAD_FOLDER_LOGOS = os.path.join(app.root_path, "static", LOGOS_SUBFOLDER)
 
-# Crear carpeta cuando trabajas local
+# ==============================
+# LOGOS CONFIG
+# ==============================
+LOGOS_SUBFOLDER = "img"  # dentro de /static
+UPLOAD_FOLDER_LOGOS = os.path.join(app.root_path, "static", LOGOS_SUBFOLDER)
 os.makedirs(UPLOAD_FOLDER_LOGOS, exist_ok=True)
 
 ALLOWED_LOGO_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+
 
 def allowed_logo_file(filename: str) -> bool:
     if not filename:
@@ -48,26 +48,14 @@ def allowed_logo_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[-1].lower() in ALLOWED_LOGO_EXTENSIONS
 
 
-=======
-from models import db, EmergencyRecord, User, Hospital
-
-# -------------------- Configuración base (Railway/MySQL) --------------------
-app = Flask(__name__)
-
-# ======= DB CONFIG: MySQL (sin SQLite) =======
-# Opción A: usar DATABASE_URL directamente
-#   Formato: mysql+pymysql://USER:PASS@HOST:PORT/DBNAME?charset=utf8mb4
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
+# ==============================
+# DB CONFIG (MySQL / Railway)
+# ==============================
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "mysql+pymysql://root:@127.0.0.1:3306/emergencias?charset=utf8mb4"
 )
 
-<<<<<<< HEAD
-=======
-# Opción B: usar variables del plugin MySQL de Railway
-# (MYSQLHOST, MYSQLUSER, MYSQLPASSWORD, MYSQLPORT, MYSQLDATABASE)
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 if not DATABASE_URL:
     rh = os.getenv("MYSQLHOST")
     ru = os.getenv("MYSQLUSER")
@@ -77,10 +65,6 @@ if not DATABASE_URL:
     if rh and ru and rp and rdb:
         DATABASE_URL = f"mysql+pymysql://{ru}:{rp}@{rh}:{rport}/{rdb}?charset=utf8mb4"
 
-<<<<<<< HEAD
-=======
-# Si aún no hay DATABASE_URL → error explícito
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 if not DATABASE_URL:
     raise RuntimeError(
         "No se ha configurado la base de datos. "
@@ -88,17 +72,9 @@ if not DATABASE_URL:
         "MYSQLPASSWORD, MYSQLPORT, MYSQLDATABASE."
     )
 
-<<<<<<< HEAD
 if DATABASE_URL.startswith("mysql://"):
     DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
 
-=======
-# Normaliza MySQL URL → mysql+pymysql://
-if DATABASE_URL.startswith("mysql://"):
-    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
-
-# Asegura charset si es MySQL
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 if DATABASE_URL.startswith("mysql+pymysql://") and "charset=" not in DATABASE_URL:
     sep = "&" if "?" in DATABASE_URL else "?"
     DATABASE_URL = f"{DATABASE_URL}{sep}charset=utf8mb4"
@@ -110,9 +86,12 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
 db.init_app(app)
 
-# ================== LOGIN MANAGER ==================
+
+# ==============================
+# LOGIN MANAGER
+# ==============================
 login_manager = LoginManager()
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
 login_manager.init_app(app)
 
 
@@ -121,14 +100,16 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-# ================== DECORADORES DE PERMISOS ==================
+# ==============================
+# DECORADORES DE PERMISOS
+# ==============================
 def admin_required(fn):
     """Solo Admin general (is_admin=True)."""
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
-            flash('Solo Administradores generales.', 'danger')
-            return redirect(url_for('index'))
+            flash("Solo Administradores generales.", "danger")
+            return redirect(url_for("index"))
         return fn(*args, **kwargs)
     return wrapper
 
@@ -152,17 +133,18 @@ def hospital_admin_required(fn):
 
 def user_hospital_scope():
     """
-    Devuelve el hospital que debe usarse como filtro según el rol:
+    Hospital filtro según rol:
     - Admin general: None (ve todos)
-    - Admin de hospital: su hospital
-    - Usuario normal: su hospital
+    - Admin hospital/usuario normal: su hospital
     """
     if current_user.is_admin:
         return None
     return current_user.hospital
 
 
-# ================== CONTEXT PROCESSOR ==================
+# ==============================
+# CONTEXT PROCESSOR
+# ==============================
 @app.context_processor
 def inject_choices():
     """Hace disponibles los hospitales activos en todas las plantillas."""
@@ -172,12 +154,9 @@ def inject_choices():
         hospitales = []
     return dict(HOSPITALES=hospitales)
 
-
-<<<<<<< HEAD
-# ================== BOOTSTRAP DB (primera vez) ==================
-=======
-# -------------------- BOOTSTRAP automático (opcional) --------------------
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
+# ==============================
+# BOOTSTRAP DB (OPCIONAL)
+# ==============================
 def _seed_hospitals():
     HOSPITALES_BASE = [
         "Hospital Regional Juan Pablo Pina",
@@ -204,72 +183,10 @@ def _seed_hospitals():
             creados += 1
     db.session.commit()
     print(f"[BOOTSTRAP] Hospitales OK (nuevos: {creados})")
-<<<<<<< HEAD
-=======
 
 
 def bootstrap_if_empty():
-    """Crea tablas y un admin si la DB está vacía (controlado por BOOTSTRAP_ON_START=1)."""
-    with app.app_context():
-        db.create_all()
-        total = User.query.count()
-        print(f"[BOOTSTRAP] Usuarios existentes: {total}")
-        if total == 0:
-            _seed_hospitals()
-            admin_user = os.getenv("ADMIN_USER", "admin")
-            admin_pass = os.getenv("ADMIN_PASS", "Admin123*")
-            admin_hosp = os.getenv("ADMIN_HOSPITAL", "Hospital Municipal los Cacaos")
-
-            ok = Hospital.query.filter_by(nombre=admin_hosp, activo=True).first()
-            if not ok:
-                any_h = Hospital.query.filter_by(activo=True).first()
-                admin_hosp = any_h.nombre if any_h else "Hospital Municipal los Cacaos"
-
-            u = User(username=admin_user, hospital=admin_hosp, is_admin=True)
-            u.set_password(admin_pass)
-            db.session.add(u)
-            db.session.commit()
-            print(f"[BOOTSTRAP] Admin creado: {admin_user} / hospital={admin_hosp}")
-        else:
-            print("[BOOTSTRAP] Ya hay usuarios. No se crea admin nuevo.")
-
-
-# Ejecutar bootstrap en arranque si BOOTSTRAP_ON_START=1
-if os.getenv("BOOTSTRAP_ON_START", "0") == "1":
-    try:
-        bootstrap_if_empty()
-    except Exception as e:
-        print(f"[BOOTSTRAP] Error: {e}")
-
-
-# Ruta manual opcional (por token) para forzar bootstrap 1 sola vez
-@app.route('/admin/bootstrap')
-def admin_bootstrap():
-    token = request.args.get('token', '')
-    expected = os.getenv("SETUP_TOKEN", "")
-    if not expected or token != expected:
-        return abort(403)
-    try:
-        bootstrap_if_empty()
-        return "Bootstrap ejecutado", 200
-    except Exception as e:
-        return f"Error: {e}", 500
-
-
-# -------------------- Healthcheck (diagnóstico DB) --------------------
-@app.route("/healthz")
-def healthz():
-    try:
-        db.session.execute(text("SELECT 1"))
-        return "OK", 200
-    except Exception as e:
-        return f"DB ERROR: {e}", 500
-
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-
-
-def bootstrap_if_empty():
-    """Crea tablas y un admin si la DB está vacía (BOOSRTRAP_ON_START=1)."""
+    """Crea tablas y un admin si la DB está vacía (BOOTSTRAP_ON_START=1)."""
     with app.app_context():
         db.create_all()
         total = User.query.count()
@@ -289,8 +206,7 @@ def bootstrap_if_empty():
                 username=admin_user,
                 hospital=admin_hosp,
                 is_admin=True,
-                is_hospital_admin=True  # también admin de hospital
-                
+                is_hospital_admin=True
             )
             u.set_password(admin_pass)
             db.session.add(u)
@@ -307,9 +223,9 @@ if os.getenv("BOOTSTRAP_ON_START", "0") == "1":
         print(f"[BOOTSTRAP] Error: {e}")
 
 
-@app.route('/admin/bootstrap')
+@app.route("/admin/bootstrap")
 def admin_bootstrap():
-    token = request.args.get('token', '')
+    token = request.args.get("token", "")
     expected = os.getenv("SETUP_TOKEN", "")
     if not expected or token != expected:
         return abort(403)
@@ -320,7 +236,9 @@ def admin_bootstrap():
         return f"Error: {e}", 500
 
 
-# ================== HEALTHCHECK ==================
+# ==============================
+# HEALTHCHECK
+# ==============================
 @app.route("/healthz")
 def healthz():
     try:
@@ -330,88 +248,69 @@ def healthz():
         return f"DB ERROR: {e}", 500
 
 
-# ================== PÁGINAS BASE / LOGIN ==================
-@app.route('/')
+# ==============================
+# PÁGINAS BASE / LOGIN
+# ==============================
+@app.route("/")
 def index():
     hoy = datetime.now().strftime("%Y-%m-%d")
-    return render_template('index.html', hoy=hoy)
+    return render_template("index.html", hoy=hoy)
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        username = (request.form.get('username') or '').strip()
-        password = request.form.get('password') or ''
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
-            flash('Sesión iniciada.', 'success')
-            return redirect(url_for('dashboard'))
-        flash('Credenciales inválidas.', 'danger')
-    return render_template('login.html')
+            flash("Sesión iniciada.", "success")
+            return redirect(url_for("dashboard"))
+        flash("Credenciales inválidas.", "danger")
+    return render_template("login.html")
 
 
-@app.route('/logout')
+@app.route("/logout")
 @login_required
 def logout():
     logout_user()
-    flash('Sesión cerrada.', 'success')
-    return redirect(url_for('index'))
-
-<<<<<<< HEAD
-
-
+    flash("Sesión cerrada.", "success")
+    return redirect(url_for("index"))
 
 
 # ======================================================================
 #   REGISTRO DIARIO DE EMERGENCIAS
 # ======================================================================
-=======
-# -------------------- Registros: Crear / Editar --------------------
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-@app.route('/nuevo', methods=['GET', 'POST'])
+@app.route("/nuevo", methods=["GET", "POST"])
 @login_required
 def nuevo():
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            fecha_str = request.form.get('fecha')
+            fecha_str = request.form.get("fecha")
             fecha = parser.parse(fecha_str).date() if fecha_str else datetime.today().date()
 
-            # Hospital según rol
             if current_user.is_admin:
-                hospital_nombre = (request.form.get('hospital') or '').strip()
+                hospital_nombre = (request.form.get("hospital") or "").strip()
                 ok = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
                 if not ok:
-                    flash('Hospital inválido o inactivo.', 'danger')
-                    return render_template('form.html')
+                    flash("Hospital inválido o inactivo.", "danger")
+                    return render_template("form.html")
                 hospital = hospital_nombre
             else:
                 hospital = current_user.hospital
 
-<<<<<<< HEAD
-            # No duplicar (fecha + hospital)
-=======
-            # 🚨 VALIDAR: no permitir 2 registros mismo día + mismo hospital
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-            existente = EmergencyRecord.query.filter_by(
-                fecha=fecha,
-                hospital=hospital
-            ).first()
-<<<<<<< HEAD
+            existente = EmergencyRecord.query.filter_by(fecha=fecha, hospital=hospital).first()
             if existente:
-                flash('Ya existe un registro para este hospital en esa fecha. '
-                      'Por favor edítalo en lugar de crear uno nuevo.', 'danger')
-=======
-
-            if existente:
-                flash('Ya existe un registro para este hospital en esa fecha. '
-                      'Por favor edítalo en lugar de crear uno nuevo.', 'danger')
-                # Si quieres, puedes mandarlo directo al editar:
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-                return redirect(url_for('editar', rec_id=existente.id))
+                flash(
+                    "Ya existe un registro para este hospital en esa fecha. "
+                    "Edítalo en lugar de crear uno nuevo.",
+                    "danger"
+                )
+                return redirect(url_for("editar", rec_id=existente.id))
 
             def to_int(name):
-                val = request.form.get(name, '0').strip()
+                val = (request.form.get(name) or "0").strip()
                 try:
                     return max(int(val), 0)
                 except Exception:
@@ -420,129 +319,108 @@ def nuevo():
             rec = EmergencyRecord(
                 fecha=fecha,
                 hospital=hospital,
-                atenciones=to_int('atenciones'),
-                ingresos=to_int('ingresos'),
-                alta_voluntario=to_int('alta_voluntario'),
-                traslados=to_int('traslados'),
-                defunciones=to_int('defunciones'),
-                motivo_traslado=(request.form.get('motivo_traslado') or '').strip(),
-                hospital_referencia=(request.form.get('hospital_referencia') or '').strip(),
-                eventualidades=(request.form.get('eventualidades') or '').strip(),
-                 # 👉 NUEVO
+                atenciones=to_int("atenciones"),
+                ingresos=to_int("ingresos"),
+                alta_voluntario=to_int("alta_voluntario"),
+                traslados=to_int("traslados"),
+                defunciones=to_int("defunciones"),
+                motivo_traslado=(request.form.get("motivo_traslado") or "").strip(),
+                hospital_referencia=(request.form.get("hospital_referencia") or "").strip(),
+                eventualidades=(request.form.get("eventualidades") or "").strip(),
                 created_by_id=current_user.id,
             )
             db.session.add(rec)
             db.session.commit()
-            flash('Registro guardado correctamente.', 'success')
-            return redirect(url_for('listar'))
+            flash("Registro guardado correctamente.", "success")
+            return redirect(url_for("listar"))
+
         except Exception as e:
-            flash(f'Error guardando: {e}', 'danger')
-    return render_template('form.html')
+            flash(f"Error guardando: {e}", "danger")
+
+    return render_template("form.html")
 
 
-@app.route('/editar/<int:rec_id>', methods=['GET', 'POST'])
+@app.route("/editar/<int:rec_id>", methods=["GET", "POST"])
 @login_required
 def editar(rec_id):
     rec = EmergencyRecord.query.get_or_404(rec_id)
 
     if not current_user.is_admin and rec.hospital != current_user.hospital:
-        flash('No tiene permiso para editar este registro.', 'danger')
-        return redirect(url_for('listar'))
+        flash("No tiene permiso para editar este registro.", "danger")
+        return redirect(url_for("listar"))
 
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            fecha_str = request.form.get('fecha')
+            fecha_str = request.form.get("fecha")
             nueva_fecha = parser.parse(fecha_str).date() if fecha_str else rec.fecha
 
             if current_user.is_admin:
-                hospital_nombre = (request.form.get('hospital') or rec.hospital).strip()
+                hospital_nombre = (request.form.get("hospital") or rec.hospital).strip()
                 ok = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
                 if not ok:
-                    flash('Hospital inválido o inactivo.', 'danger')
-                    return render_template('edit.html', rec=rec)
+                    flash("Hospital inválido o inactivo.", "danger")
+                    return render_template("edit.html", rec=rec)
                 nuevo_hospital = hospital_nombre
             else:
                 nuevo_hospital = current_user.hospital
 
-<<<<<<< HEAD
-=======
-            # 🚨 VALIDAR: no permitir duplicado en OTRO registro
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
             duplicado = EmergencyRecord.query.filter(
                 EmergencyRecord.id != rec.id,
                 EmergencyRecord.fecha == nueva_fecha,
                 EmergencyRecord.hospital == nuevo_hospital
             ).first()
-<<<<<<< HEAD
-=======
-
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
             if duplicado:
-                flash('Ya existe otro registro para este hospital en esa fecha.', 'danger')
-                return render_template('edit.html', rec=rec)
+                flash("Ya existe otro registro para este hospital en esa fecha.", "danger")
+                return render_template("edit.html", rec=rec)
 
-<<<<<<< HEAD
-=======
-            # Si pasa la validación, actualizamos
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
             rec.fecha = nueva_fecha
             rec.hospital = nuevo_hospital
 
             def to_int(name, current):
-                val = request.form.get(name, None)
-                if val is None or val == '':
+                val = request.form.get(name, "")
+                if val == "":
                     return current
                 try:
                     return max(int(val), 0)
                 except Exception:
                     return current
 
-            rec.atenciones = to_int('atenciones', rec.atenciones)
-            rec.ingresos = to_int('ingresos', rec.ingresos)
-            rec.alta_voluntario = to_int('alta_voluntario', rec.alta_voluntario)
-            rec.traslados = to_int('traslados', rec.traslados)
-            rec.defunciones = to_int('defunciones', rec.defunciones)
-            rec.motivo_traslado = (request.form.get('motivo_traslado') or '').strip()
-            rec.hospital_referencia = (request.form.get('hospital_referencia') or '').strip()
-            rec.eventualidades = (request.form.get('eventualidades') or '').strip()
+            rec.atenciones = to_int("atenciones", rec.atenciones)
+            rec.ingresos = to_int("ingresos", rec.ingresos)
+            rec.alta_voluntario = to_int("alta_voluntario", rec.alta_voluntario)
+            rec.traslados = to_int("traslados", rec.traslados)
+            rec.defunciones = to_int("defunciones", rec.defunciones)
+            rec.motivo_traslado = (request.form.get("motivo_traslado") or "").strip()
+            rec.hospital_referencia = (request.form.get("hospital_referencia") or "").strip()
+            rec.eventualidades = (request.form.get("eventualidades") or "").strip()
 
             db.session.commit()
-            flash('Registro actualizado correctamente.', 'success')
-            return redirect(url_for('listar'))
+            flash("Registro actualizado correctamente.", "success")
+            return redirect(url_for("listar"))
+
         except Exception as e:
-            flash(f'Error actualizando: {e}', 'danger')
-    return render_template('edit.html', rec=rec)
+            flash(f"Error actualizando: {e}", "danger")
+
+    return render_template("edit.html", rec=rec)
 
 
-<<<<<<< HEAD
-=======
-# -------------------- Eliminar Registro solo Admin --------------------
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-@app.route('/eliminar/<int:rec_id>', methods=['POST'])
+@app.route("/eliminar/<int:rec_id>", methods=["POST"])
 @login_required
 @admin_required
 def eliminar(rec_id):
-<<<<<<< HEAD
-=======
-    """Eliminar un registro de emergencias (solo Administradores)."""
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     rec = EmergencyRecord.query.get_or_404(rec_id)
     db.session.delete(rec)
     db.session.commit()
-    flash('Registro eliminado correctamente.', 'success')
-    return redirect(url_for('listar'))
+    flash("Registro eliminado correctamente.", "success")
+    return redirect(url_for("listar"))
 
 
-<<<<<<< HEAD
-=======
-# -------------------- Listar + Filtros --------------------
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-@app.route('/listar')
+@app.route("/listar")
 @login_required
 def listar():
-    f_hospital = (request.args.get('hospital') or '').strip()
-    f_desde = request.args.get('desde')
-    f_hasta = request.args.get('hasta')
+    f_hospital = (request.args.get("hospital") or "").strip()
+    f_desde = request.args.get("desde")
+    f_hasta = request.args.get("hasta")
 
     q = EmergencyRecord.query
 
@@ -567,20 +445,16 @@ def listar():
         q = q.filter(EmergencyRecord.fecha <= d_hasta)
 
     registros = q.order_by(EmergencyRecord.fecha.desc(), EmergencyRecord.id.desc()).all()
-    return render_template('list.html', registros=registros)
+    return render_template("list.html", registros=registros)
 
 
-<<<<<<< HEAD
 # ================== EXPORTAR CSV ==================
-=======
-# -------------------- Exportar CSV --------------------
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-@app.route('/exportar_csv')
+@app.route("/exportar_csv")
 @login_required
 def exportar_csv():
-    f_hospital = (request.args.get('hospital') or '').strip()
-    f_desde = request.args.get('desde')
-    f_hasta = request.args.get('hasta')
+    f_hospital = (request.args.get("hospital") or "").strip()
+    f_desde = request.args.get("desde")
+    f_hasta = request.args.get("hasta")
 
     q = EmergencyRecord.query
 
@@ -609,35 +483,28 @@ def exportar_csv():
     si = StringIO()
     writer = csv.writer(si)
     writer.writerow([
-        'Fecha', 'Hospital', 'Atenciones', 'Ingresos', 'Alta Voluntario',
-        'Traslados', 'Motivo del traslado', 'Hospital de referencia',
-        'Defunciones', 'Eventualidades'
+        "Fecha", "Hospital", "Atenciones", "Ingresos", "Alta Voluntario",
+        "Traslados", "Motivo del traslado", "Hospital de referencia",
+        "Defunciones", "Eventualidades"
     ])
     for r in registros:
         writer.writerow(r.to_row())
-    output = si.getvalue().encode('utf-8-sig')
+
+    output = si.getvalue().encode("utf-8-sig")
     return Response(
         output,
-        mimetype='text/csv; charset=utf-8',
-        headers={'Content-Disposition': 'attachment; filename=registros_emergencias.csv'}
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=registros_emergencias.csv"}
     )
 
 
-<<<<<<< HEAD
 # ================== EXPORTAR EXCEL ==================
-@app.route('/exportar_excel')
+@app.route("/exportar_excel")
 @login_required
 def exportar_excel():
-=======
-# -------------------- Exportar Excel (con formato) --------------------
-@app.route('/exportar_excel')
-@login_required
-def exportar_excel():
-    # === 1) Filtros (igual que en listar/CSV) ===
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-    f_hospital = (request.args.get('hospital') or '').strip()
-    f_desde = request.args.get('desde') or ''
-    f_hasta = request.args.get('hasta') or ''
+    f_hospital = (request.args.get("hospital") or "").strip()
+    f_desde = request.args.get("desde") or ""
+    f_hasta = request.args.get("hasta") or ""
 
     def parse_date(s):
         try:
@@ -650,7 +517,10 @@ def exportar_excel():
 
     if d_desde and d_hasta and d_desde > d_hasta:
         d_desde, d_hasta = d_hasta, d_desde
-        f_desde, f_hasta = (d_desde.isoformat() if d_desde else ''), (d_hasta.isoformat() if d_hasta else '')
+        f_desde, f_hasta = (
+            d_desde.isoformat() if d_desde else "",
+            d_hasta.isoformat() if d_hasta else ""
+        )
 
     q = EmergencyRecord.query
     motivo_vacio = []
@@ -672,10 +542,6 @@ def exportar_excel():
 
     registros = q.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
 
-<<<<<<< HEAD
-=======
-    # Salvavidas: si no hay datos y había filtros de fecha, reintenta sin fechas
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     reintento_sin_fechas = False
     if len(registros) == 0 and (d_desde or d_hasta):
         q2 = EmergencyRecord.query
@@ -684,13 +550,10 @@ def exportar_excel():
         else:
             if f_hospital:
                 q2 = q2.filter(EmergencyRecord.hospital == f_hospital)
+
         registros = q2.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
         reintento_sin_fechas = True
 
-<<<<<<< HEAD
-=======
-    # === 2) Workbook con estilos ===
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     wb = Workbook()
     ws = wb.active
     ws.title = "Registros"
@@ -726,10 +589,6 @@ def exportar_excel():
         except Exception:
             pass
 
-<<<<<<< HEAD
-=======
-    # Encabezado
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     for col_idx in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col_idx)
         cell.fill = header_fill
@@ -737,10 +596,6 @@ def exportar_excel():
         cell.alignment = header_align
         cell.border = border_all
 
-<<<<<<< HEAD
-=======
-    # Datos
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     row_start = 2
     for r in registros:
         ws.append([
@@ -778,8 +633,11 @@ def exportar_excel():
 
         for c in COL_NUMS:
             col_letter = get_column_letter(c)
-            ws.cell(row=total_row, column=c,
-                    value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})").style = "number_right"
+            ws.cell(
+                row=total_row, column=c,
+                value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})"
+            ).style = "number_right"
+
         for c in range(1, len(headers) + 1):
             cell = ws.cell(row=total_row, column=c)
             cell.border = border_all
@@ -788,22 +646,13 @@ def exportar_excel():
 
         last_row = total_row
 
-<<<<<<< HEAD
     widths = {1: 12, 2: 38, 3: 12, 4: 12, 5: 16, 6: 12, 7: 28, 8: 28, 9: 12, 10: 50}
-=======
-    # Ajustes UX
-    widths = {1:12, 2:38, 3:12, 4:12, 5:16, 6:12, 7:28, 8:28, 9:12, 10:50}
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     for c, w in widths.items():
         ws.column_dimensions[get_column_letter(c)].width = w
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{last_row}"
 
-<<<<<<< HEAD
-=======
-    # Hoja resumen
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     summary = wb.create_sheet("Resumen", 0)
     summary["A1"] = "Exportación de Registros de Emergencias"
     summary["A1"].font = Font(size=14, bold=True)
@@ -811,8 +660,10 @@ def exportar_excel():
     summary["A3"] = "Generado:"
     summary["B3"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     summary["A4"] = "Hospital:"
-    summary["B4"] = (f_hospital if (current_user.is_admin and f_hospital)
-                     else (current_user.hospital if not current_user.is_admin else "Todos"))
+    summary["B4"] = (
+        f_hospital if (current_user.is_admin and f_hospital)
+        else (current_user.hospital if not current_user.is_admin else "Todos")
+    )
     summary["A5"] = "Desde:"
     summary["B5"] = f_desde or ""
     summary["A6"] = "Hasta:"
@@ -845,53 +696,35 @@ def exportar_excel():
     )
 
 
-
 # ======================================================================
-#   EXPORTAR GUARDIA A PDF (xhtml2pdf)
+#   PDF HELPERS
 # ======================================================================
-
 def link_callback(uri, rel):
-    """
-    Convierte rutas /static/... y static/... en rutas absolutas para xhtml2pdf.
-    """
-    # Si viene como /static/... (ruta más común en html)
+    """Resuelve rutas static para xhtml2pdf."""
     if uri.startswith("/static/"):
-        uri = uri.lstrip("/")  # -> static/...
+        uri = uri.lstrip("/")
 
-    # Si viene como static/...  (sin slash inicial)
     if uri.startswith("static/"):
-        # Construye ruta absoluta real del archivo
         path = os.path.join(current_app.root_path, uri.replace("/", os.sep))
-        
-        # Debug útil (puedes dejarlo mientras pruebas)
-        # print("link_callback:", uri, "->", path)
-
         if os.path.isfile(path):
             return path
 
-    # Si no es static/, devolver tal cual
     return uri
 
-def render_pdf_from_html(html: str, pdf_filename: str = "guardia.pdf"):
-    """
-    Convierte HTML a PDF usando xhtml2pdf (pisa) y devuelve un Response.
-    Usa link_callback para resolver imágenes estáticas.
-    """
+
+def render_pdf_from_html(html: str, pdf_filename: str = "reporte.pdf"):
+    """Convierte HTML a PDF usando xhtml2pdf."""
     result = BytesIO()
     pisa_status = pisa.CreatePDF(
         src=html.encode("utf-8"),
         dest=result,
         encoding="utf-8",
-        link_callback=link_callback,  # 👈 IMPORTANTE
+        link_callback=link_callback,
     )
 
     if pisa_status.err:
-        # Opcional: imprimir errores en consola
         print("Errores xhtml2pdf:", pisa_status.err)
-        return Response(
-            "Error generando PDF de guardia.",
-            mimetype="text/plain"
-        )
+        return Response("Error generando PDF.", mimetype="text/plain")
 
     result.seek(0)
     response = make_response(result.read())
@@ -900,41 +733,15 @@ def render_pdf_from_html(html: str, pdf_filename: str = "guardia.pdf"):
     return response
 
 
-@app.route("/guardias/<int:g_id>/pdf")
-@login_required
-def guardias_pdf(g_id):
-    g = GuardiaEmergencia.query.get_or_404(g_id)
-
-# AQUÍ está el truco:
-    hosp = Hospital.query.filter_by(nombre=g.hospital, activo=True).first()
-
-    # Respeto del alcance por hospital (admin de hospital solo su centro)
-    scope_hosp = user_hospital_scope()
-    if scope_hosp and g.hospital != scope_hosp:
-        flash("No puedes ver guardias de otros hospitales.", "danger")
-        return redirect(url_for("guardias_list"))
-
-    html = render_template(
-        "guardia_pdf.html",
-        g=g,
-        hosp=hosp,
-        generated_at=datetime.now()
-    )
-    filename = f"guardia_{g.hospital.replace(' ', '_')}_{g.fecha.isoformat()}.pdf"
-    return render_pdf_from_html(html, pdf_filename=filename)
-
-
-
-
 # ======================================================================
 #   DASHBOARD
 # ======================================================================
-@app.route('/dashboard')
+@app.route("/dashboard")
 @login_required
 def dashboard():
-    f_hospital = (request.args.get('hospital') or '').strip()
-    f_desde = request.args.get('desde')
-    f_hasta = request.args.get('hasta')
+    f_hospital = (request.args.get("hospital") or "").strip()
+    f_desde = request.args.get("desde")
+    f_hasta = request.args.get("hasta")
 
     q = EmergencyRecord.query
     if not current_user.is_admin:
@@ -965,10 +772,6 @@ def dashboard():
     kpi_traslados = sum(r.traslados for r in registros)
     kpi_defunciones = sum(r.defunciones for r in registros)
 
-<<<<<<< HEAD
-=======
-    # Serie por fecha
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     series = {}
     for r in registros:
         key = r.fecha.isoformat()
@@ -997,7 +800,7 @@ def dashboard():
         )[:5]
 
     return render_template(
-        'dashboard.html',
+        "dashboard.html",
         sel_hospital=sel_hospital,
         f_hospital=f_hospital,
         f_desde=f_desde or "",
@@ -1018,220 +821,174 @@ def dashboard():
 # ======================================================================
 #   CRUD HOSPITALES (ADMIN GENERAL)
 # ======================================================================
-@app.route('/hospitales')
+@app.route("/hospitales")
 @login_required
 @admin_required
 def hospitales_list():
     hospitales = Hospital.query.order_by(Hospital.activo.desc(), Hospital.nombre.asc()).all()
-    return render_template('hosp_list.html', hospitales=hospitales)
+    return render_template("hosp_list.html", hospitales=hospitales)
 
 
-@app.route('/hospitales/nuevo', methods=['GET', 'POST'])
+@app.route("/hospitales/nuevo", methods=["GET", "POST"])
 @login_required
 @admin_required
 def hospitales_nuevo():
-    if request.method == 'POST':
-        nombre = (request.form.get('nombre') or '').strip()
-        # Archivo de logo (opcional)
-        logo_file = request.files.get('logo_file', None)
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        logo_file = request.files.get("logo_file")
 
         if not nombre:
-            flash('El nombre es obligatorio.', 'danger')
-            return render_template('hosp_form.html')
+            flash("El nombre es obligatorio.", "danger")
+            return render_template("hosp_form.html")
 
         if Hospital.query.filter_by(nombre=nombre).first():
-            flash('Ya existe un hospital con ese nombre.', 'danger')
-            return render_template('hosp_form.html')
+            flash("Ya existe un hospital con ese nombre.", "danger")
+            return render_template("hosp_form.html")
 
         logo_filename_db = None
-        # Si viene un archivo y es válido
         if logo_file and logo_file.filename:
             if not allowed_logo_file(logo_file.filename):
-                flash('Tipo de archivo de logo no permitido. Use PNG, JPG, JPEG o GIF.', 'danger')
-                return render_template('hosp_form.html')
+                flash("Tipo de logo no permitido. Use PNG/JPG/JPEG/GIF.", "danger")
+                return render_template("hosp_form.html")
 
             safe_name = secure_filename(logo_file.filename)
             save_path = os.path.join(UPLOAD_FOLDER_LOGOS, safe_name)
             logo_file.save(save_path)
-
-            # Guardamos en BD la ruta relativa a /static
             logo_filename_db = os.path.join(LOGOS_SUBFOLDER, safe_name).replace("\\", "/")
 
-        h = Hospital(
-            nombre=nombre,
-            activo=True,
-            logo_filename=logo_filename_db
-        )
+        h = Hospital(nombre=nombre, activo=True, logo_filename=logo_filename_db)
         db.session.add(h)
         db.session.commit()
-        flash('Hospital creado.', 'success')
-        return redirect(url_for('hospitales_list'))
+        flash("Hospital creado.", "success")
+        return redirect(url_for("hospitales_list"))
 
-    return render_template('hosp_form.html')
-
-
+    return render_template("hosp_form.html")
 
 
-@app.route('/hospitales/editar/<int:h_id>', methods=['GET', 'POST'])
+@app.route("/hospitales/editar/<int:h_id>", methods=["GET", "POST"])
 @login_required
 @admin_required
 def hospitales_editar(h_id):
     h = Hospital.query.get_or_404(h_id)
-    if request.method == 'POST':
-        nombre = (request.form.get('nombre') or '').strip()
-        activo = True if request.form.get('activo') == 'on' else False
-        logo_file = request.files.get('logo_file', None)
-        # Checkbox para borrar logo actual (opcional)
-        borrar_logo = True if request.form.get('borrar_logo') == 'on' else False
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        activo = True if request.form.get("activo") == "on" else False
+        logo_file = request.files.get("logo_file")
+        borrar_logo = True if request.form.get("borrar_logo") == "on" else False
 
         if not nombre:
-            flash('El nombre es obligatorio.', 'danger')
-            return render_template('hosp_form.html', h=h)
+            flash("El nombre es obligatorio.", "danger")
+            return render_template("hosp_form.html", h=h)
 
         existe = Hospital.query.filter(Hospital.id != h.id, Hospital.nombre == nombre).first()
         if existe:
-            flash('Ya existe otro hospital con ese nombre.', 'danger')
-            return render_template('hosp_form.html', h=h)
+            flash("Ya existe otro hospital con ese nombre.", "danger")
+            return render_template("hosp_form.html", h=h)
 
         h.nombre = nombre
         h.activo = activo
 
-        # Si se marcó borrar logo, lo limpiamos
         if borrar_logo:
             h.logo_filename = None
 
-        # Si se sube un archivo nuevo, lo usamos
         if logo_file and logo_file.filename:
             if not allowed_logo_file(logo_file.filename):
-                flash('Tipo de archivo de logo no permitido. Use PNG, JPG, JPEG o GIF.', 'danger')
-                return render_template('hosp_form.html', h=h)
+                flash("Tipo de logo no permitido. Use PNG/JPG/JPEG/GIF.", "danger")
+                return render_template("hosp_form.html", h=h)
 
             safe_name = secure_filename(logo_file.filename)
             save_path = os.path.join(UPLOAD_FOLDER_LOGOS, safe_name)
             logo_file.save(save_path)
-
             h.logo_filename = os.path.join(LOGOS_SUBFOLDER, safe_name).replace("\\", "/")
 
         db.session.commit()
-        flash('Hospital actualizado.', 'success')
-        return redirect(url_for('hospitales_list'))
-    return render_template('hosp_form.html', h=h)
+        flash("Hospital actualizado.", "success")
+        return redirect(url_for("hospitales_list"))
+
+    return render_template("hosp_form.html", h=h)
 
 
-    
-
-
-@app.route('/hospitales/eliminar/<int:h_id>', methods=['POST'])
+@app.route("/hospitales/eliminar/<int:h_id>", methods=["POST"])
 @login_required
 @admin_required
 def hospitales_eliminar(h_id):
     h = Hospital.query.get_or_404(h_id)
     h.activo = False
     db.session.commit()
-    flash('Hospital desactivado (puedes reactivarlo editando).', 'success')
-    return redirect(url_for('hospitales_list'))
+    flash("Hospital desactivado (puedes reactivarlo editando).", "success")
+    return redirect(url_for("hospitales_list"))
 
 
-<<<<<<< HEAD
 # ======================================================================
-#   GESTIÓN DE USUARIOS (ADMIN GENERAL)
+#   GESTIÓN DE USUARIOS (ADMIN GENERAL + ADMIN HOSPITAL)
 # ======================================================================
-# ======================================================================
-#   GESTIÓN DE USUARIOS (ADMIN GENERAL + ADMIN DE HOSPITAL)
-# ======================================================================
-@app.route('/usuarios')
+@app.route("/usuarios")
 @login_required
 @hospital_admin_required
 def usuarios_list():
     q = User.query
     if current_user.is_admin:
-        # Admin general ve todos
         usuarios = q.order_by(
             User.is_admin.desc(),
             User.is_hospital_admin.desc(),
             User.username.asc()
         ).all()
     else:
-        # Admin de hospital solo ve usuarios de su hospital
-        usuarios = q.filter(User.hospital == current_user.hospital) \
-                    .order_by(
-                        User.is_admin.desc(),
-                        User.is_hospital_admin.desc(),
-                        User.username.asc()
-                    ).all()
-=======
-# -------------------- Gestión de Usuarios (solo Admin) --------------------
-@app.route('/usuarios')
-@login_required
-@admin_required
-def usuarios_list():
-    usuarios = User.query.order_by(User.is_admin.desc(), User.username.asc()).all()
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-    return render_template('users_list.html', usuarios=usuarios)
+        usuarios = q.filter(User.hospital == current_user.hospital).order_by(
+            User.is_admin.desc(),
+            User.is_hospital_admin.desc(),
+            User.username.asc()
+        ).all()
+
+    return render_template("users_list.html", usuarios=usuarios)
 
 
-@app.route('/usuarios/nuevo', methods=['GET', 'POST'])
+@app.route("/usuarios/nuevo", methods=["GET", "POST"])
 @login_required
-<<<<<<< HEAD
 @hospital_admin_required
-=======
-@admin_required
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
 def usuarios_nuevo():
-    if request.method == 'POST':
-        username = (request.form.get('username') or '').strip()
-        hospital = (request.form.get('hospital') or '').strip()
-        password1 = request.form.get('password1') or ''
-        password2 = request.form.get('password2') or ''
-<<<<<<< HEAD
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        hospital = (request.form.get("hospital") or "").strip()
+        password1 = request.form.get("password1") or ""
+        password2 = request.form.get("password2") or ""
 
-
-=======
-        is_admin = True if request.form.get('is_admin') == 'on' else False
-
-        # Validaciones básicas
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         if not username:
-            flash('El nombre de usuario es obligatorio.', 'danger')
-            return render_template('user_form.html')
+            flash("El nombre de usuario es obligatorio.", "danger")
+            return render_template("user_form.html")
 
         if User.query.filter_by(username=username).first():
-            flash('Ya existe un usuario con ese nombre.', 'danger')
-            return render_template('user_form.html')
+            flash("Ya existe un usuario con ese nombre.", "danger")
+            return render_template("user_form.html")
 
         if not password1:
-            flash('La contraseña es obligatoria.', 'danger')
-            return render_template('user_form.html')
+            flash("La contraseña es obligatoria.", "danger")
+            return render_template("user_form.html")
 
         if password1 != password2:
-            flash('Las contraseñas no coinciden.', 'danger')
-            return render_template('user_form.html')
+            flash("Las contraseñas no coinciden.", "danger")
+            return render_template("user_form.html")
 
-<<<<<<< HEAD
-        # Resolver hospital según rol
         if current_user.is_admin:
             hospital_final = hospital or None
             if hospital_final:
                 h = Hospital.query.filter_by(nombre=hospital_final, activo=True).first()
                 if not h:
-                    flash('Hospital inválido o inactivo.', 'danger')
-                    return render_template('user_form.html')
+                    flash("Hospital inválido o inactivo.", "danger")
+                    return render_template("user_form.html")
         else:
-            # Admin de hospital: fuerza su propio hospital
             hospital_final = current_user.hospital
             if not hospital_final:
-                flash('Tu usuario no tiene hospital asignado, no puedes crear usuarios.', 'danger')
-                return render_template('user_form.html')
+                flash("Tu usuario no tiene hospital asignado.", "danger")
+                return render_template("user_form.html")
 
-        # Roles según quién crea
         if current_user.is_admin:
-            is_admin = True if request.form.get('is_admin') == 'on' else False
-            is_hosp_admin = True if request.form.get('is_hospital_admin') == 'on' else False
+            is_admin = True if request.form.get("is_admin") == "on" else False
+            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
         else:
-            # Admin de hospital no puede crear admins globales
             is_admin = False
-            # Pero sí puede marcar o no admin de hospital (SIEMPRE en su hospital)
-            is_hosp_admin = True if request.form.get('is_hospital_admin') == 'on' else False
+            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
 
         u = User(
             username=username,
@@ -1246,99 +1003,60 @@ def usuarios_nuevo():
             exequatur=request.form.get("exequatur") or "",
             telefono=request.form.get("telefono") or "",
             email=request.form.get("email") or "",
-            
-=======
-        # Validar hospital (puede ser vacío si quieres permitir usuarios sin hospital)
-        if hospital:
-            h = Hospital.query.filter_by(nombre=hospital, activo=True).first()
-            if not h:
-                flash('Hospital inválido o inactivo.', 'danger')
-                return render_template('user_form.html')
-
-        # Crear usuario
-        u = User(
-            username=username,
-            hospital=hospital or None,
-            is_admin=is_admin
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         )
         u.set_password(password1)
         db.session.add(u)
         db.session.commit()
-        flash('Usuario creado correctamente.', 'success')
-        return redirect(url_for('usuarios_list'))
+        flash("Usuario creado correctamente.", "success")
+        return redirect(url_for("usuarios_list"))
 
-<<<<<<< HEAD
-=======
-    # GET
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-    return render_template('user_form.html')
+    return render_template("user_form.html")
 
 
-@app.route('/usuarios/editar/<int:u_id>', methods=['GET', 'POST'])
+@app.route("/usuarios/editar/<int:u_id>", methods=["GET", "POST"])
 @login_required
-<<<<<<< HEAD
 @hospital_admin_required
 def usuarios_editar(u_id):
     u = User.query.get_or_404(u_id)
 
-    # Admin de hospital solo puede editar usuarios de su hospital
     if not current_user.is_admin and u.hospital != current_user.hospital:
-        flash('No puedes editar usuarios de otros hospitales.', 'danger')
-        return redirect(url_for('usuarios_list'))
+        flash("No puedes editar usuarios de otros hospitales.", "danger")
+        return redirect(url_for("usuarios_list"))
 
-=======
-@admin_required
-def usuarios_editar(u_id):
-    u = User.query.get_or_404(u_id)
-
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-    if request.method == 'POST':
-        username = (request.form.get('username') or '').strip()
-        hospital = (request.form.get('hospital') or '').strip()
-        password1 = request.form.get('password1') or ''
-        password2 = request.form.get('password2') or ''
-<<<<<<< HEAD
-        
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        hospital = (request.form.get("hospital") or "").strip()
+        password1 = request.form.get("password1") or ""
+        password2 = request.form.get("password2") or ""
 
         if current_user.is_admin:
-            is_admin = True if request.form.get('is_admin') == 'on' else False
-            is_hosp_admin = True if request.form.get('is_hospital_admin') == 'on' else False
+            is_admin = True if request.form.get("is_admin") == "on" else False
+            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
         else:
-            # Admin de hospital NO puede convertir a nadie en admin global
-            is_admin = u.is_admin  # debería ser False
-            is_hosp_admin = True if request.form.get('is_hospital_admin') == 'on' else False
-=======
-        is_admin = True if request.form.get('is_admin') == 'on' else False
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
+            is_admin = u.is_admin
+            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
 
         if not username:
-            flash('El nombre de usuario es obligatorio.', 'danger')
-            return render_template('user_form.html', u=u)
+            flash("El nombre de usuario es obligatorio.", "danger")
+            return render_template("user_form.html", u=u)
 
-<<<<<<< HEAD
-=======
-        # Verificar que no exista otro usuario con ese username
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         existe = User.query.filter(User.id != u.id, User.username == username).first()
         if existe:
-            flash('Ya existe otro usuario con ese nombre.', 'danger')
-            return render_template('user_form.html', u=u)
+            flash("Ya existe otro usuario con ese nombre.", "danger")
+            return render_template("user_form.html", u=u)
 
-<<<<<<< HEAD
-        # Resolver hospital según rol
         if current_user.is_admin:
             hospital_final = hospital or None
             if hospital_final:
                 h = Hospital.query.filter_by(nombre=hospital_final, activo=True).first()
                 if not h:
-                    flash('Hospital inválido o inactivo.', 'danger')
-                    return render_template('user_form.html', u=u)
+                    flash("Hospital inválido o inactivo.", "danger")
+                    return render_template("user_form.html", u=u)
         else:
             hospital_final = current_user.hospital
             if not hospital_final:
-                flash('Tu usuario no tiene hospital asignado.', 'danger')
-                return render_template('user_form.html', u=u)
+                flash("Tu usuario no tiene hospital asignado.", "danger")
+                return render_template("user_form.html", u=u)
 
         u.username = username
         u.hospital = hospital_final
@@ -1353,75 +1071,45 @@ def usuarios_editar(u_id):
         u.telefono = request.form.get("telefono") or u.telefono
         u.email = request.form.get("email") or u.email
 
-=======
-        # Validar hospital
-        if hospital:
-            h = Hospital.query.filter_by(nombre=hospital, activo=True).first()
-            if not h:
-                flash('Hospital inválido o inactivo.', 'danger')
-                return render_template('user_form.html', u=u)
-
-        u.username = username
-        u.hospital = hospital or None
-        u.is_admin = is_admin
-
-        # Cambio de contraseña solo si se llenan ambos campos
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         if password1 or password2:
             if password1 != password2:
-                flash('Las contraseñas no coinciden.', 'danger')
-                return render_template('user_form.html', u=u)
+                flash("Las contraseñas no coinciden.", "danger")
+                return render_template("user_form.html", u=u)
             if not password1:
-                flash('La nueva contraseña no puede estar vacía.', 'danger')
-                return render_template('user_form.html', u=u)
+                flash("La nueva contraseña no puede estar vacía.", "danger")
+                return render_template("user_form.html", u=u)
             u.set_password(password1)
 
         db.session.commit()
-        flash('Usuario actualizado correctamente.', 'success')
-        return redirect(url_for('usuarios_list'))
+        flash("Usuario actualizado correctamente.", "success")
+        return redirect(url_for("usuarios_list"))
 
-    return render_template('user_form.html', u=u)
+    return render_template("user_form.html", u=u)
 
 
-@app.route('/usuarios/eliminar/<int:u_id>', methods=['POST'])
+@app.route("/usuarios/eliminar/<int:u_id>", methods=["POST"])
 @login_required
-<<<<<<< HEAD
 @hospital_admin_required
 def usuarios_eliminar(u_id):
     u = User.query.get_or_404(u_id)
 
-=======
-@admin_required
-def usuarios_eliminar(u_id):
-    u = User.query.get_or_404(u_id)
-
-    # Evitar que un admin se borre a sí mismo (opcional)
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     if current_user.id == u.id:
-        flash('No puedes eliminar tu propio usuario.', 'danger')
-        return redirect(url_for('usuarios_list'))
+        flash("No puedes eliminar tu propio usuario.", "danger")
+        return redirect(url_for("usuarios_list"))
 
-<<<<<<< HEAD
-    # Admin de hospital solo puede eliminar usuarios de su hospital
     if not current_user.is_admin and u.hospital != current_user.hospital:
-        flash('No puedes eliminar usuarios de otros hospitales.', 'danger')
-        return redirect(url_for('usuarios_list'))
+        flash("No puedes eliminar usuarios de otros hospitales.", "danger")
+        return redirect(url_for("usuarios_list"))
 
-=======
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
     db.session.delete(u)
     db.session.commit()
-    flash('Usuario eliminado correctamente.', 'success')
-    return redirect(url_for('usuarios_list'))
+    flash("Usuario eliminado correctamente.", "success")
+    return redirect(url_for("usuarios_list"))
 
 
-
-<<<<<<< HEAD
 # ======================================================================
-#   GUARDIAS DE EMERGENCIA
+#   GUARDIAS
 # ======================================================================
-from datetime import date, timedelta
-
 @app.route("/guardias")
 @login_required
 def guardias_list():
@@ -1438,25 +1126,21 @@ def guardias_list():
     d_desde = parse_date(f_desde) if f_desde else None
     d_hasta = parse_date(f_hasta) if f_hasta else None
 
-    # Si no ponen fechas, usa mes actual (1er día → hoy)
     hoy = date.today()
     if not d_desde and not d_hasta:
         d_desde = hoy.replace(day=1)
         d_hasta = hoy
     else:
-        # si falta una fecha, completa con hoy / desde
         if d_desde and not d_hasta:
             d_hasta = hoy
         if d_hasta and not d_desde:
             d_desde = d_hasta.replace(day=1)
 
-    # si vienen invertidas, corrige
     if d_desde and d_hasta and d_desde > d_hasta:
         d_desde, d_hasta = d_hasta, d_desde
 
     q = GuardiaEmergencia.query
 
-    # Alcance según rol
     scope_hosp = user_hospital_scope()
     if scope_hosp:
         q = q.filter(GuardiaEmergencia.hospital == scope_hosp)
@@ -1466,24 +1150,15 @@ def guardias_list():
             q = q.filter(GuardiaEmergencia.hospital == f_hospital)
             hospitales_scope = [f_hospital]
         else:
-            hospitales_scope = [
-                h.nombre for h in Hospital.query.filter_by(activo=True).all()
-            ]
+            hospitales_scope = [h.nombre for h in Hospital.query.filter_by(activo=True).all()]
 
-    # Filtro fechas
     if d_desde:
         q = q.filter(GuardiaEmergencia.fecha >= d_desde)
     if d_hasta:
         q = q.filter(GuardiaEmergencia.fecha <= d_hasta)
 
-    guardias = q.order_by(
-        GuardiaEmergencia.fecha.desc(),
-        GuardiaEmergencia.id.desc()
-    ).all()
+    guardias = q.order_by(GuardiaEmergencia.fecha.desc(), GuardiaEmergencia.id.desc()).all()
 
-    # -------------------------------
-    # Calcular pendientes por hospital
-    # -------------------------------
     def date_range(start: date, end: date):
         cur = start
         while cur <= end:
@@ -1494,81 +1169,56 @@ def guardias_list():
     total_pendientes = 0
 
     for hosp_name in hospitales_scope:
-        # fechas con guardia por hospital
-        fechas_con_guardia = {
-            g.fecha for g in guardias if g.hospital == hosp_name
-        }
-
-        faltantes = [
-            d for d in date_range(d_desde, d_hasta)
-            if d not in fechas_con_guardia
-        ]
+        fechas_con_guardia = {g.fecha for g in guardias if g.hospital == hosp_name}
+        faltantes = [d for d in date_range(d_desde, d_hasta) if d not in fechas_con_guardia]
 
         if faltantes:
             pendientes_por_hospital[hosp_name] = faltantes
             total_pendientes += len(faltantes)
 
-    # Para compatibilidad con tu template actual:
-    # - pendiente_count y pendiente_fechas aplican SOLO al hospital seleccionado
     pendiente_count = 0
     pendiente_fechas = []
-
     if len(hospitales_scope) == 1:
         hname = hospitales_scope[0]
         if hname in pendientes_por_hospital:
-            pendiente_fechas = [
-                d.strftime("%Y-%m-%d") for d in pendientes_por_hospital[hname]
-            ]
+            pendiente_fechas = [d.strftime("%Y-%m-%d") for d in pendientes_por_hospital[hname]]
             pendiente_count = len(pendiente_fechas)
 
     return render_template(
         "guardias_list.html",
         guardias=guardias,
-        # rango mostrado
         rango_inicio=d_desde.strftime("%Y-%m-%d") if d_desde else "",
         rango_fin=d_hasta.strftime("%Y-%m-%d") if d_hasta else "",
-        # pendientes globales y por hospital
         pendientes_por_hospital=pendientes_por_hospital,
         total_pendientes=total_pendientes,
-        # compat con tu header actual
         pendiente_count=pendiente_count,
         pendiente_fechas=pendiente_fechas,
     )
 
 
-
-
 @app.route("/guardias/nuevo", methods=["GET", "POST"])
 @login_required
-@hospital_admin_required   # Mantiene la seguridad: solo admin general / admin hospital
 def guardias_nuevo():
     if request.method == "POST":
         try:
-            # === FECHA DEL REGISTRO ===
             fecha_str = request.form.get("fecha")
             fecha = parser.parse(fecha_str).date() if fecha_str else datetime.today().date()
 
-            # === HOSPITAL SEGÚN ROL ===
-            if current_user.is_admin:
-                hospital_nombre = (request.form.get("hospital") or "").strip()
-            else:
-                hospital_nombre = current_user.hospital  # admin de hospital o usuario normal
+            hospital_nombre = (
+                (request.form.get("hospital") or "").strip()
+                if current_user.is_admin
+                else current_user.hospital
+            )
 
             if not hospital_nombre:
                 flash("Debe indicar un hospital.", "danger")
                 return render_template("guardias_form.html")
 
-            # === VALIDAR QUE NO EXISTA YA UNA GUARDIA PARA ESE DÍA ===
-            existe = GuardiaEmergencia.query.filter_by(
-                fecha=fecha,
-                hospital=hospital_nombre
-            ).first()
-
+            existe = GuardiaEmergencia.query.filter_by(fecha=fecha, hospital=hospital_nombre).first()
             if existe:
                 flash("Ya existe una guardia registrada para esa fecha y hospital.", "danger")
                 return redirect(url_for("guardias_editar", g_id=existe.id))
 
-            # Helper numérico
             def to_int(name):
                 val = (request.form.get(name) or "0").strip()
                 try:
@@ -1576,7 +1226,6 @@ def guardias_nuevo():
                 except Exception:
                     return 0
 
-            # === CREAR GUARDIA ===
             g = GuardiaEmergencia(
                 fecha=fecha,
                 hospital=hospital_nombre,
@@ -1595,24 +1244,19 @@ def guardias_nuevo():
                 referidos=to_int("referidos"),
                 eventualidades=(request.form.get("eventualidades") or "").strip(),
                 firma=(request.form.get("firma") or "").strip(),
-
-                # === NUEVO: Guarda quién creó esta guardia ===
                 created_by_id=current_user.id
             )
 
             db.session.add(g)
             db.session.commit()
-
             flash("Guardia creada correctamente.", "success")
             return redirect(url_for("guardias_list"))
 
         except Exception as e:
             flash(f"Error guardando guardia: {e}", "danger")
 
-    # GET
     hoy = datetime.now().strftime("%Y-%m-%d")
     return render_template("guardias_form.html", hoy=hoy, g=None)
-
 
 
 @app.route("/guardias/editar/<int:g_id>", methods=["GET", "POST"])
@@ -1630,10 +1274,11 @@ def guardias_editar(g_id):
             fecha_str = request.form.get("fecha")
             nueva_fecha = parser.parse(fecha_str).date() if fecha_str else g.fecha
 
-            if current_user.is_admin:
-                hospital_nombre = (request.form.get("hospital") or g.hospital).strip()
-            else:
-                hospital_nombre = g.hospital
+            hospital_nombre = (
+                (request.form.get("hospital") or g.hospital).strip()
+                if current_user.is_admin
+                else g.hospital
+            )
 
             dup = GuardiaEmergencia.query.filter(
                 GuardiaEmergencia.id != g.id,
@@ -1674,6 +1319,7 @@ def guardias_editar(g_id):
             db.session.commit()
             flash("Guardia actualizada correctamente.", "success")
             return redirect(url_for("guardias_list"))
+
         except Exception as e:
             flash(f"Error actualizando guardia: {e}", "danger")
 
@@ -1698,12 +1344,31 @@ def guardias_eliminar(g_id):
     return redirect(url_for("guardias_list"))
 
 
+@app.route("/guardias/<int:g_id>/pdf")
+@login_required
+def guardias_pdf(g_id):
+    g = GuardiaEmergencia.query.get_or_404(g_id)
+
+    hosp = Hospital.query.filter_by(nombre=g.hospital, activo=True).first()
+
+    scope_hosp = user_hospital_scope()
+    if scope_hosp and g.hospital != scope_hosp:
+        flash("No puedes ver guardias de otros hospitales.", "danger")
+        return redirect(url_for("guardias_list"))
+
+    html = render_template(
+        "guardia_pdf.html",
+        g=g,
+        hosp=hosp,
+        generated_at=datetime.now()
+    )
+    filename = f"guardia_{g.hospital.replace(' ', '_')}_{g.fecha.isoformat()}.pdf"
+    return render_pdf_from_html(html, pdf_filename=filename)
+
+
 # ======================================================================
 #   INTERNAMIENTOS
 # ======================================================================
-from sqlalchemy.orm import joinedload
-from datetime import date
-
 @app.route("/internamientos")
 @login_required
 def internamientos_list():
@@ -1711,18 +1376,13 @@ def internamientos_list():
     f_desde = request.args.get("desde")
     f_hasta = request.args.get("hasta")
 
-    # Mostrar egresados solo cuando se solicita ?egresados=1
     mostrar_egresados = request.args.get("egresados") == "1"
 
-    q = Internamiento.query.options(
-        joinedload(Internamiento.created_by)  # Medico que lo creó
-    )
+    q = Internamiento.query.options(joinedload(Internamiento.created_by))
 
-    # --- Filtro: no mostrar egresados por defecto ---
     if not mostrar_egresados:
         q = q.filter(Internamiento.egresado == False)
 
-    # --- alcance por rol ---
     scope_hosp = user_hospital_scope()
     if scope_hosp:
         q = q.filter(Internamiento.hospital == scope_hosp)
@@ -1730,7 +1390,6 @@ def internamientos_list():
         if f_hospital:
             q = q.filter(Internamiento.hospital == f_hospital)
 
-    # --- Parse de fechas ---
     def parse_date(s):
         try:
             return parser.parse(s).date()
@@ -1740,7 +1399,6 @@ def internamientos_list():
     d_desde = parse_date(f_desde) if f_desde else None
     d_hasta = parse_date(f_hasta) if f_hasta else None
 
-    # --- Si no hay fechas → usar mes actual ---
     hoy = date.today()
     if not d_desde and not d_hasta:
         d_desde = hoy.replace(day=1)
@@ -1751,21 +1409,15 @@ def internamientos_list():
         if d_hasta and not d_desde:
             d_desde = d_hasta.replace(day=1)
 
-    # --- Corregir fecha invertida ---
     if d_desde and d_hasta and d_desde > d_hasta:
         d_desde, d_hasta = d_hasta, d_desde
 
-    # --- Aplicar filtros de fecha ---
     if d_desde:
         q = q.filter(Internamiento.fecha >= d_desde)
     if d_hasta:
         q = q.filter(Internamiento.fecha <= d_hasta)
 
-    # --- Listado ordenado ---
-    internamientos = q.order_by(
-        Internamiento.fecha.desc(),
-        Internamiento.id.desc()
-    ).all()
+    internamientos = q.order_by(Internamiento.fecha.desc(), Internamiento.id.desc()).all()
 
     return render_template(
         "internamientos_list.html",
@@ -1777,18 +1429,14 @@ def internamientos_list():
     )
 
 
-
-
 @app.route("/internamientos/nuevo", methods=["GET", "POST"])
 @login_required
 def internamientos_nuevo():
     if request.method == "POST":
         try:
-            # Fecha principal del registro
             fecha_str = request.form.get("fecha")
             fecha = parser.parse(fecha_str).date() if fecha_str else datetime.today().date()
 
-            # Hospital según rol
             if current_user.is_admin or current_user.is_hospital_admin:
                 hospital_nombre = (request.form.get("hospital") or current_user.hospital or "").strip()
             else:
@@ -1798,7 +1446,6 @@ def internamientos_nuevo():
                 flash("Debe indicar un hospital.", "danger")
                 return render_template("internamientos_form.html", ir=None)
 
-            # Helper para IDs / enteros opcionales
             def to_int_or_none(name):
                 val = (request.form.get(name) or "").strip()
                 if not val:
@@ -1808,18 +1455,16 @@ def internamientos_nuevo():
                 except Exception:
                     return None
 
-            # Día de ingreso como fecha
             dia_ingreso_str = (request.form.get("dia_ingreso") or "").strip()
+            dia_ingreso_val = None
             if dia_ingreso_str:
                 try:
                     dia_ingreso_val = parser.parse(dia_ingreso_str).date()
                 except Exception:
                     dia_ingreso_val = None
-            else:
-                dia_ingreso_val = None
 
-                ir = Internamiento(
-                fecha=fecha,   # fecha ingreso real
+            ir = Internamiento(
+                fecha=fecha,
                 hospital=hospital_nombre,
                 area=(request.form.get("area") or "").strip(),
                 habitacion=(request.form.get("habitacion") or "").strip(),
@@ -1831,20 +1476,20 @@ def internamientos_nuevo():
                 origen_ingreso=(request.form.get("origen_ingreso") or "").strip(),
                 observaciones=(request.form.get("observaciones") or "").strip(),
                 egresado=True if request.form.get("egresado") == "on" else False,
+                dia_ingreso=dia_ingreso_val,
                 created_by_id=current_user.id
             )
-
 
             db.session.add(ir)
             db.session.commit()
             flash("Internamiento registrado correctamente.", "success")
             return redirect(url_for("internamientos_list"))
+
         except Exception as e:
             flash(f"Error guardando internamiento: {e}", "danger")
 
     hoy = datetime.now().strftime("%Y-%m-%d")
     return render_template("internamientos_form.html", hoy=hoy, ir=None)
-
 
 
 @app.route("/internamientos/editar/<int:i_id>", methods=["GET", "POST"])
@@ -1859,11 +1504,9 @@ def internamientos_editar(i_id):
 
     if request.method == "POST":
         try:
-            # Fecha principal
             fecha_str = request.form.get("fecha")
             ir.fecha = parser.parse(fecha_str).date() if fecha_str else ir.fecha
 
-            # Hospital (solo admin general o admin de hospital pueden cambiarlo)
             if current_user.is_admin or current_user.is_hospital_admin:
                 hospital_nombre = (request.form.get("hospital") or ir.hospital).strip()
                 ir.hospital = hospital_nombre
@@ -1877,16 +1520,14 @@ def internamientos_editar(i_id):
                 except Exception:
                     return current
 
-            # Edad como entero
             ir.edad = to_int_or_none("edad", ir.edad)
 
-            # Día de ingreso como fecha
             dia_ingreso_str = (request.form.get("dia_ingreso") or "").strip()
             if dia_ingreso_str:
                 try:
                     ir.dia_ingreso = parser.parse(dia_ingreso_str).date()
                 except Exception:
-                    pass  # deja el valor anterior
+                    pass
 
             ir.area = (request.form.get("area") or "").strip()
             ir.habitacion = (request.form.get("habitacion") or "").strip()
@@ -1898,10 +1539,10 @@ def internamientos_editar(i_id):
             ir.observaciones = (request.form.get("observaciones") or "").strip()
             ir.egresado = True if request.form.get("egresado") == "on" else False
 
-
             db.session.commit()
             flash("Internamiento actualizado correctamente.", "success")
             return redirect(url_for("internamientos_list"))
+
         except Exception as e:
             flash(f"Error actualizando internamiento: {e}", "danger")
 
@@ -1925,22 +1566,16 @@ def internamientos_eliminar(i_id):
     return redirect(url_for("internamientos_list"))
 
 
-# ======================================================================
-#   EXPORTAR INTERNAMIENTOS A PDF (REPORTE DIARIO)
-# ======================================================================
-from sqlalchemy.orm import joinedload
-from datetime import date, datetime
-
 @app.route("/internamientos/pdf")
 @login_required
 def internamientos_pdf():
 
-    # ---- 1) Modo VALIDACIÓN SOLO ----
+    # 1) SOLO VALIDACIÓN
     if request.args.get("validar") == "1":
         fecha_str = request.args.get("fecha")
         try:
             fecha_reporte = parser.parse(fecha_str).date() if fecha_str else date.today()
-        except:
+        except Exception:
             fecha_reporte = date.today()
 
         scope_hosp = user_hospital_scope()
@@ -1964,12 +1599,12 @@ def internamientos_pdf():
 
         return jsonify({"ok": len(faltantes) == 0, "faltantes": faltantes})
 
-    # ---- 2) Modo GENERAR PDF ----
+    # 2) GENERAR PDF
     if request.args.get("generar") == "1":
         fecha_str = request.args.get("fecha")
         try:
             fecha_reporte = parser.parse(fecha_str).date() if fecha_str else date.today()
-        except:
+        except Exception:
             fecha_reporte = date.today()
 
         mostrar_egresados = request.args.get("egresados") == "1"
@@ -1993,7 +1628,6 @@ def internamientos_pdf():
         ).all()
 
         hosp = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
-
         observaciones_generales = (request.args.get("observaciones_generales") or "").strip()
 
         html = render_template(
@@ -2009,38 +1643,30 @@ def internamientos_pdf():
         filename = f"internamientos_{hospital_nombre.replace(' ', '_')}_{fecha_reporte.isoformat()}.pdf"
         return render_pdf_from_html(html, pdf_filename=filename)
 
-    # ---- Si llaman sin parámetros, error ----
     return jsonify({"error": "Modo inválido"}), 400
 
 
-
-
 # ======================================================================
-#   RUTAS PWA
+#   PWA: manifest / service worker / offline
 # ======================================================================
-=======
-# -------------------- Rutas PWA --------------------
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
-@app.route('/manifest.webmanifest')
+@app.route("/manifest.webmanifest")
 def manifest():
-    return send_from_directory('static', 'manifest.webmanifest', mimetype='application/manifest+json')
+    return send_from_directory("static", "manifest.webmanifest", mimetype="application/manifest+json")
 
 
-@app.route('/sw.js')
+@app.route("/sw.js")
 def sw():
-    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+    return send_from_directory("static", "sw.js", mimetype="application/javascript")
 
 
-@app.route('/offline')
+@app.route("/offline")
 def offline():
-    return render_template('offline.html')
+    return render_template("offline.html")
 
 
-# ================== MAIN ==================
-if __name__ == '__main__':
-<<<<<<< HEAD
-=======
-    # Railway usa PORT; local 5000
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
+# ==============================
+# MAIN
+# ==============================
+if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)

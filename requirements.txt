@@ -26,5 +26,3 @@ PyMySQL
 cryptography
 <<<<<<< HEAD
 xhtml2pdf==0.2.15
-=======
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a

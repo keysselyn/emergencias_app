@@ -140,10 +140,7 @@
         <th>Hospital referencia</th>
         <th>Defunciones</th>
         <th>Eventualidades</th>
-<<<<<<< HEAD
         <th>Registrado por</th>
-=======
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         <th class="text-end">Acciones</th>
       </tr>
     </thead>
@@ -162,15 +159,12 @@
         <td class="text-truncate" style="max-width:250px;" title="{{ r.eventualidades or '' }}">
           {{ r.eventualidades or '' }}
         </td>
-<<<<<<< HEAD
         <td> {% if r.created_by %}
         {{ r.created_by.nombre }} {{ r.created_by.apellido }}
     {% else %}
         —
     {% endif %}
         </td>
-=======
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
         <td class="table-actions">
     <a href="{{ url_for('editar', rec_id=r.id) }}"
        class="btn btn-outline-primary btn-sm">
@@ -187,10 +181,6 @@
     </form>
     {% endif %}
 </td>
-<<<<<<< HEAD
-
-=======
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
       </tr>
       {% endfor %}
     </tbody>
@@ -246,8 +236,4 @@
   </div>
 </div>
 
-<<<<<<< HEAD
 {% endblock %}
-=======
-{% endblock %}
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a

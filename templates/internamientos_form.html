@@ -32,30 +32,32 @@
                  required>
         </div>
 
-        {% if current_user.is_admin or current_user.is_hospital_admin %}
-        <div class="col-6">
-          <label class="form-label fw-semibold">Hospital</label>
-          <select name="hospital" class="form-select" required>
-            <option value="">Seleccione…</option>
-            {% for h in HOSPITALES %}
-              <option value="{{ h.nombre }}"
-                      {% if ir and ir.hospital == h.nombre %}
-                        selected
-                      {% elif not ir and current_user.hospital == h.nombre %}
-                        selected
-                      {% endif %}>
-                {{ h.nombre }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-        {% else %}
-        <div class="col-6">
-          <label class="form-label fw-semibold">Hospital</label>
-          <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
-          <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
-        </div>
-        {% endif %}
+       {% if current_user.is_admin %}
+<div class="col-6">
+  <label class="form-label fw-semibold">Hospital</label>
+  <select name="hospital" class="form-select" required>
+    <option value="">Seleccione…</option>
+    {% for h in HOSPITALES %}
+      <option value="{{ h.nombre }}"
+              {% if ir and ir.hospital == h.nombre %}
+                selected
+              {% elif not ir and current_user.hospital == h.nombre %}
+                selected
+              {% endif %}>
+        {{ h.nombre }}
+      </option>
+    {% endfor %}
+  </select>
+</div>
+
+{% else %}
+<div class="col-6">
+  <label class="form-label fw-semibold">Hospital</label>
+  <input type="text" class="form-control" value="{{ current_user.hospital }}" disabled>
+  <input type="hidden" name="hospital" value="{{ current_user.hospital }}">
+</div>
+{% endif %}
+
 
         {# ───── Bloque: Paciente ───── #}
         <div class="col-12 mt-2">
