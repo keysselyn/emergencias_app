@@ -3,75 +3,62 @@
 
 {% block content %}
  <div class="card page-header-card mb-3 p-3">
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <div>
-      <div class="d-flex align-items-center gap-2">
-        <div class="rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-             style="width:44px;height:44px;">
-          <i class="bi bi-person-vcard text-primary fs-4"></i>
-        </div>
-        <div>
-          <h5 class="mb-0 fw-semibold">Internamiento</h5>
-          <div class="page-subtitle">
-            Registro diario de pacientes hospitalizados
-          </div>
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-md-between mb-2">
+
+    <!-- IZQUIERDA -->
+    <div class="d-flex align-items-center gap-2 mb-2 mb-md-0">
+      <div class="rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+           style="width:44px;height:44px;">
+        <i class="bi bi-person-vcard text-primary fs-4"></i>
+      </div>
+
+      <div>
+        <h5 class="mb-0 fw-semibold">Internamiento</h5>
+        <div class="page-subtitle small">
+          Registro diario de pacientes hospitalizados
         </div>
       </div>
     </div>
 
-    <button class="btn btn-outline-secondary btn-sm"
+    <!-- BOTÓN FILTROS -->
+    <button class="btn btn-outline-secondary btn-sm align-self-start align-self-md-auto"
             data-bs-toggle="offcanvas"
             data-bs-target="#filtersInternamientos">
       <i class="bi bi-funnel"></i> Filtros
     </button>
   </div>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <!-- FILA INFERIOR -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+
+    <!-- Ubicación/hospital -->
     <div class="small text-muted">
+      <i class="bi bi-hospital"></i>
       {% if current_user.hospital %}
-        <i class="bi bi-hospital"></i> {{ current_user.hospital }}
+        {{ current_user.hospital }}
       {% else %}
-        <i class="bi bi-hospital"></i> Red Valdesia
+        Red Valdesia
       {% endif %}
     </div>
 
-    <!-- Acciones derecha -->
-    <div class="d-flex align-items-center gap-3 ms-auto">
+    <!-- ACCIONES DERECHA -->
+    <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-3 ms-lg-auto">
 
-      <a class="btn btn-primary btn-sm" href="{{ url_for('internamientos_nuevo') }}">
-        <i class="bi bi-journal-plus"></i> Nuevo internamiento
-      </a>
+      <!-- Nuevo Internamiento -->
+      <a class="btn btn-primary btn-sm flex-shrink-0"
+   href="{{ url_for('internamientos_nuevo') }}">
+  <i class="bi bi-journal-plus"></i> Nuevo internamiento
+</a>
 
-      <!-- Acciones PDF -->
 
-      <!-- Botón PDF diario -->
-<button type="button"
-        class="btn btn-outline-danger btn-sm"
+      <!-- PDF Diario -->
+      <button type="button"
+        class="btn btn-outline-danger btn-sm flex-shrink-0"
         id="btnPdfDiario">
   <i class="bi bi-filetype-pdf"></i> PDF diario
 </button>
 
-
-<!-- Form oculto que genera PDF -->
-<form id="formPdfInternamientos"
-      method="get"
-      action="{{ url_for('internamientos_pdf') }}"
-      target="_blank"
-      class="d-none">
-
-  <input type="hidden" name="hospital" value="{{ request.args.get('hospital','') }}">
-  <input type="hidden" name="desde" value="{{ request.args.get('desde','') }}">
-  <input type="hidden" name="hasta" value="{{ request.args.get('hasta','') }}">
-  {% if mostrar_egresados %}
-    <input type="hidden" name="egresados" value="1">
-  {% endif %}
-
-  <input type="hidden" name="observaciones_generales" id="obsGeneralInput">
-</form>
-
-
-
-      <!-- Switch egresados -->
+      <!-- Switch Egresados -->
       <div class="d-flex align-items-center gap-2">
         <label class="modern-switch mb-0">
           <input type="checkbox"
@@ -84,10 +71,24 @@
           {% if mostrar_egresados %} Egresados: Sí {% else %} Egresados: No {% endif %}
         </span>
       </div>
-
     </div>
+
   </div>
+
+  <!-- FORM PDF OCULTO -->
+  <form id="formPdfInternamientos" method="get"
+        action="{{ url_for('internamientos_pdf') }}"
+        target="_blank" class="d-none">
+    <input type="hidden" name="hospital" value="{{ request.args.get('hospital','') }}">
+    <input type="hidden" name="desde" value="{{ request.args.get('desde','') }}">
+    <input type="hidden" name="hasta" value="{{ request.args.get('hasta','') }}">
+    {% if mostrar_egresados %}
+      <input type="hidden" name="egresados" value="1">
+    {% endif %}
+    <input type="hidden" name="observaciones_generales" id="obsGeneralInput">
+  </form>
 </div>
+
 
 
 {# ───────── LISTA MÓVIL COMPACTA ───────── #}
