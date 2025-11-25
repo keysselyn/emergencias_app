@@ -103,13 +103,6 @@
         <span>Inicio</span>
       </a>
 
-      <!-- Registros de emergencias -->
-      <a href="/listar"
-         class="{% if request.path.startswith('/listar') %}active{% endif %}">
-        <i class="bi bi-journal-text fs-5"></i>
-        <span>Registros</span>
-      </a>
-
       <!-- Guardias de emergencia -->
       <a href="{{ url_for('guardias_list') }}"
          class="{% if request.path.startswith('/guardias') %}active{% endif %}">
@@ -117,6 +110,14 @@
         <span>Guardias</span>
       </a>
 
+      <!-- Guardias de Internamientos -->
+      <a href="{{ url_for('internamientos_list') }}"
+         class="{% if request.path.startswith('/internamientos') %}active{% endif %}">
+        <i class="bi bi-person-vcard fs-5"></i>
+        <span>Internamientos</span>
+      </a>
+
+      
       <!-- Dashboard -->
       <a href="/dashboard"
          class="{% if request.path.startswith('/dashboard') %}active{% endif %}">
@@ -141,19 +142,20 @@
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="moreDropup">
 
-          <!-- Internamientos disponible para todos los usuarios autenticados -->
-          <li>
-            <a class="dropdown-item" href="{{ url_for('internamientos_list') }}">
-              <i class="bi bi-person-vcard me-2"></i> Internamientos
-            </a>
-          </li>
-
+          
           {% if current_user.is_admin or current_user.is_hospital_admin %}
-            <li><hr class="dropdown-divider"></li>
-            {% if current_user.is_admin %}
+           {% if current_user.is_admin %}
               <li class="dropdown-header small text-muted">
                 Administración general
               </li>
+
+              <li>
+                <a class="dropdown-item" href="{{ url_for('listar') }}">
+                  <i class="bi bi-hospital me-2"></i> Registros
+                </a>
+              </li>
+
+
               <li>
                 <a class="dropdown-item" href="{{ url_for('hospitales_list') }}">
                   <i class="bi bi-hospital me-2"></i> Hospitales
@@ -167,6 +169,11 @@
             {% elif current_user.is_hospital_admin %}
               <li class="dropdown-header small text-muted">
                 Administración del hospital
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('listar') }}">
+                  <i class="bi bi-hospital me-2"></i> Registros
+                </a>
               </li>
               <li>
                 <a class="dropdown-item" href="{{ url_for('usuarios_list') }}">

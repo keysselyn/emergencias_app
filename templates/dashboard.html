@@ -1,26 +1,71 @@
 {% extends 'base.html' %}
 {% block content %}
+
 <div class="card p-3 mb-3">
   <div class="d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Dashboard – {{ sel_hospital }}</h5>
+    <div>
+      <h5 class="mb-0">Dashboard – {{ sel_hospital }}</h5>
+      <small class="text-muted">Guardias de emergencia e internamientos</small>
+    </div>
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#dfilters">
       <i class="bi bi-sliders"></i>
     </button>
   </div>
 
   <div class="row g-2 mt-2">
-    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Atenciones <strong class="ms-auto">{{ kpi_atenciones }}</strong></div></div>
-    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Ingresos   <strong class="ms-auto">{{ kpi_ingresos }}</strong></div></div>
-    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Traslados  <strong class="ms-auto">{{ kpi_traslados }}</strong></div></div>
-    <div class="col-6 col-md-3"><div class="kpi-chip"><span class="kpi-dot"></span> Defunc.    <strong class="ms-auto">{{ kpi_defunciones }}</strong></div></div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip">
+        <span class="kpi-dot"></span>
+        Atenciones
+        <strong class="ms-auto">{{ kpi_atenciones }}</strong>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip">
+        <span class="kpi-dot"></span>
+        Ingresos
+        <strong class="ms-auto">{{ kpi_ingresos }}</strong>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip">
+        <span class="kpi-dot"></span>
+        Traslados
+        <strong class="ms-auto">{{ kpi_traslados }}</strong>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip">
+        <span class="kpi-dot"></span>
+        Defunciones
+        <strong class="ms-auto">{{ kpi_defunciones }}</strong>
+      </div>
+    </div>
   </div>
 </div>
 
+{# Gráfico 1: tendencia guardias #}
 <div class="card mb-3">
   <div class="card-body">
-    <h6 class="card-title">Tendencia</h6>
+    <h6 class="card-title">Tendencia – Guardia de emergencias</h6>
+    <small class="text-muted d-block mb-2">
+      Pacientes atendidos, ingresos, traslados y defunciones por día de guardia.
+    </small>
     <div style="height: 320px;">
       <canvas id="lineChart"></canvas>
+    </div>
+  </div>
+</div>
+
+{# Gráfico 2: internamientos #}
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">Ingresos a internamiento por día</h6>
+    <small class="text-muted d-block mb-2">
+      Número de nuevos internamientos según fecha de ingreso.
+    </small>
+    <div style="height: 260px;">
+      <canvas id="intChart"></canvas>
     </div>
   </div>
 </div>
@@ -28,13 +73,23 @@
 {% if current_user.is_admin and not f_hospital and ranking %}
 <div class="card">
   <div class="card-body">
-    <h6 class="card-title">Top hospitales por atenciones</h6>
+    <h6 class="card-title">Top hospitales por atenciones (guardia)</h6>
     <div class="table-responsive">
-      <table class="table table-sm">
-        <thead><tr><th>#</th><th>Hospital</th><th>Atenciones</th></tr></thead>
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Hospital</th>
+            <th class="text-end">Atenciones</th>
+          </tr>
+        </thead>
         <tbody>
           {% for row in ranking %}
-          <tr><td>{{ loop.index }}</td><td>{{ row.hospital }}</td><td>{{ row.atenciones }}</td></tr>
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ row.hospital }}</td>
+            <td class="text-end">{{ row.atenciones }}</td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -71,8 +126,12 @@
         <input type="date" name="hasta" class="form-control" value="{{ f_hasta }}">
       </div>
       <div class="d-grid gap-2">
-        <button class="btn btn-primary"><i class="bi bi-sliders"></i> Aplicar</button>
-        <a class="btn btn-outline-secondary" href="/dashboard">Limpiar</a>
+        <button class="btn btn-primary">
+          <i class="bi bi-sliders"></i> Aplicar
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">
+          Limpiar
+        </a>
       </div>
     </form>
   </div>
@@ -80,21 +139,48 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-const labels = {{ labels | safe }};
-const dataAt = {{ data_atenciones | safe }};
-const dataIn = {{ data_ingresos   | safe }};
-const dataTr = {{ data_traslados  | safe }};
-const dataDf = {{ data_defunciones| safe }};
+const labels      = {{ labels | safe }};
+const dataAt      = {{ data_atenciones    | safe }};
+const dataIn      = {{ data_ingresos      | safe }};
+const dataTr      = {{ data_traslados     | safe }};
+const dataDf      = {{ data_defunciones   | safe }};
 
+const labelsInt   = {{ labels_int         | safe }};
+const dataInt     = {{ data_internamientos| safe }};
+
+// Gráfico de guardias
 new Chart(document.getElementById('lineChart').getContext('2d'), {
   type: 'line',
-  data: { labels, datasets: [
-    { label: 'Atenciones', data: dataAt },
-    { label: 'Ingresos',   data: dataIn },
-    { label: 'Traslados',  data: dataTr },
-    { label: 'Defunciones',data: dataDf },
-  ]},
-  options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, elements: { line: { tension: .25 } } }
+  data: {
+    labels,
+    datasets: [
+      { label: 'Atenciones',  data: dataAt, borderWidth: 2, tension: .25 },
+      { label: 'Ingresos',    data: dataIn, borderWidth: 2, tension: .25 },
+      { label: 'Traslados',   data: dataTr, borderWidth: 2, tension: .25 },
+      { label: 'Defunciones', data: dataDf, borderWidth: 2, tension: .25 },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+
+// Gráfico de internamientos
+new Chart(document.getElementById('intChart').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: labelsInt,
+    datasets: [
+      { label: 'Nuevos internamientos', data: dataInt, borderWidth: 1 }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: { y: { beginAtZero: true } }
+  }
 });
 </script>
 {% endblock %}

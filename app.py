@@ -252,10 +252,60 @@ def healthz():
 # ==============================
 # PÁGINAS BASE / LOGIN
 # ==============================
-@app.route("/")
+@app.route('/')
 def index():
     hoy = datetime.now().strftime("%Y-%m-%d")
-    return render_template("index.html", hoy=hoy)
+
+    # Valores por defecto para cuando no haya login
+    kpi_guardias_hoy = 0
+    kpi_internamientos_activos = 0
+    kpi_internamientos_egresados_hoy = 0
+
+    if current_user.is_authenticated:
+        # Fecha "hoy" a nivel de fecha (sin hora)
+        hoy_date = date.today()
+
+        # Alcance por hospital según rol
+        scope_hosp = user_hospital_scope()
+
+        # Guardias de hoy
+        q_guardias = GuardiaEmergencia.query.filter(
+            GuardiaEmergencia.fecha == hoy_date
+        )
+
+        # Internamientos del hospital (activos + egresados)
+        q_intern = Internamiento.query
+
+        if scope_hosp:
+            q_guardias = q_guardias.filter(GuardiaEmergencia.hospital == scope_hosp)
+            q_intern = q_intern.filter(Internamiento.hospital == scope_hosp)
+
+        # Conteos
+        kpi_guardias_hoy = q_guardias.count()
+
+        # Internamientos activos (no egresados)
+        kpi_internamientos_activos = q_intern.filter(
+            Internamiento.egresado == False
+        ).count()
+
+        # Internamientos egresados HOY (según fecha_actualizacion)
+        inicio_hoy = datetime.combine(hoy_date, datetime.min.time())
+        fin_hoy = datetime.combine(hoy_date, datetime.max.time())
+
+        kpi_internamientos_egresados_hoy = q_intern.filter(
+            Internamiento.egresado == True,
+            Internamiento.fecha_actualizacion >= inicio_hoy,
+            Internamiento.fecha_actualizacion <= fin_hoy
+        ).count()
+
+    return render_template(
+        'index.html',
+        hoy=hoy,
+        kpi_guardias_hoy=kpi_guardias_hoy,
+        kpi_internamientos_activos=kpi_internamientos_activos,
+        kpi_internamientos_egresados_hoy=kpi_internamientos_egresados_hoy
+    )
+
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -735,24 +785,18 @@ def render_pdf_from_html(html: str, pdf_filename: str = "reporte.pdf"):
 
 
 # ======================================================================
-#   DASHBOARD
+#   DASHBOARD (Guardias + Internamientos)
 # ======================================================================
-@app.route("/dashboard")
+@app.route('/dashboard')
 @login_required
 def dashboard():
-    f_hospital = (request.args.get("hospital") or "").strip()
-    f_desde = request.args.get("desde")
-    f_hasta = request.args.get("hasta")
+    from models import GuardiaEmergencia, Internamiento  # por si no está arriba
 
-    q = EmergencyRecord.query
-    if not current_user.is_admin:
-        q = q.filter(EmergencyRecord.hospital == current_user.hospital)
-        sel_hospital = current_user.hospital
-    else:
-        if f_hospital:
-            q = q.filter(EmergencyRecord.hospital == f_hospital)
-        sel_hospital = f_hospital or "Todos"
+    f_hospital = (request.args.get('hospital') or '').strip()
+    f_desde = request.args.get('desde')
+    f_hasta = request.args.get('hasta')
 
+    # -------- helper parse fecha --------
     def parse_date(s):
         try:
             return parser.parse(s).date()
@@ -761,39 +805,109 @@ def dashboard():
 
     d_desde = parse_date(f_desde) if f_desde else None
     d_hasta = parse_date(f_hasta) if f_hasta else None
+
+    # Si no ponen fechas → mes actual (1 al día de hoy)
+    hoy = date.today()
+    if not d_desde and not d_hasta:
+        d_desde = hoy.replace(day=1)
+        d_hasta = hoy
+    else:
+        if d_desde and not d_hasta:
+            d_hasta = hoy
+        if d_hasta and not d_desde:
+            d_desde = d_hasta.replace(day=1)
+
+    if d_desde and d_hasta and d_desde > d_hasta:
+        d_desde, d_hasta = d_hasta, d_desde
+
+    # -------- Query base --------
+    qg = GuardiaEmergencia.query
+    qi = Internamiento.query
+
+    # Alcance según rol
+    if not current_user.is_admin:
+        # Usuario normal o admin de hospital → su hospital
+        hosp_scope = current_user.hospital
+        qg = qg.filter(GuardiaEmergencia.hospital == hosp_scope)
+        qi = qi.filter(Internamiento.hospital == hosp_scope)
+        sel_hospital = hosp_scope or "Sin hospital"
+    else:
+        # Admin general puede ver todos o filtrar
+        if f_hospital:
+            qg = qg.filter(GuardiaEmergencia.hospital == f_hospital)
+            qi = qi.filter(Internamiento.hospital == f_hospital)
+            sel_hospital = f_hospital
+        else:
+            sel_hospital = "Todos"
+
+    # Filtro fechas guardias (por fecha de guardia)
     if d_desde:
-        q = q.filter(EmergencyRecord.fecha >= d_desde)
+        qg = qg.filter(GuardiaEmergencia.fecha >= d_desde)
+        qi = qi.filter(Internamiento.fecha >= d_desde)
     if d_hasta:
-        q = q.filter(EmergencyRecord.fecha <= d_hasta)
+        qg = qg.filter(GuardiaEmergencia.fecha <= d_hasta)
+        qi = qi.filter(Internamiento.fecha <= d_hasta)
 
-    registros = q.order_by(EmergencyRecord.fecha.asc()).all()
+    guardias = qg.order_by(GuardiaEmergencia.fecha.asc()).all()
+    internamientos = qi.order_by(Internamiento.fecha.asc()).all()
 
-    kpi_atenciones = sum(r.atenciones for r in registros)
-    kpi_ingresos = sum(r.ingresos for r in registros)
-    kpi_traslados = sum(r.traslados for r in registros)
-    kpi_defunciones = sum(r.defunciones for r in registros)
+    # -------- KPIs (solo guardias) --------
+    kpi_atenciones = 0
+    kpi_ingresos = 0
+    kpi_traslados = 0
+    kpi_defunciones = 0
 
-    series = {}
-    for r in registros:
-        key = r.fecha.isoformat()
-        series.setdefault(key, {"atenciones": 0, "ingresos": 0, "traslados": 0, "defunciones": 0})
-        series[key]["atenciones"] += r.atenciones
-        series[key]["ingresos"] += r.ingresos
-        series[key]["traslados"] += r.traslados
-        series[key]["defunciones"] += r.defunciones
+    for g in guardias:
+        total_pac = (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
+        kpi_atenciones += total_pac
+        kpi_ingresos += (g.ingresados_total or 0)
+        kpi_traslados += (g.referidos or 0)
+        kpi_defunciones += (g.fallecidos or 0)
 
-    dates = sorted(series.keys())
-    chart_atenciones = [series[d]["atenciones"] for d in dates]
-    chart_ingresos = [series[d]["ingresos"] for d in dates]
-    chart_traslados = [series[d]["traslados"] for d in dates]
-    chart_defunciones = [series[d]["defunciones"] for d in dates]
+    # -------- Series para gráfico de GUARDIAS --------
+    series_g = {}
+    for g in guardias:
+        key = g.fecha.isoformat()
+        if key not in series_g:
+            series_g[key] = {
+                "atenciones": 0,
+                "ingresos": 0,
+                "traslados": 0,
+                "defunciones": 0,
+            }
+        total_pac = (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
+        series_g[key]["atenciones"] += total_pac
+        series_g[key]["ingresos"] += (g.ingresados_total or 0)
+        series_g[key]["traslados"] += (g.referidos or 0)
+        series_g[key]["defunciones"] += (g.fallecidos or 0)
 
+    labels = sorted(series_g.keys())
+    data_atenciones = [series_g[d]["atenciones"] for d in labels] if labels else []
+    data_ingresos = [series_g[d]["ingresos"] for d in labels] if labels else []
+    data_traslados = [series_g[d]["traslados"] for d in labels] if labels else []
+    data_defunciones = [series_g[d]["defunciones"] for d in labels] if labels else []
+
+    # -------- Series para gráfico de INTERNAMIENTOS --------
+    series_int = {}
+    for i in internamientos:
+        key = i.fecha.isoformat() if i.fecha else None
+        if not key:
+            continue
+        series_int.setdefault(key, 0)
+        series_int[key] += 1  # 1 ingreso por registro
+
+    labels_int = sorted(series_int.keys())
+    data_internamientos = [series_int[d] for d in labels_int] if labels_int else []
+
+    # -------- Ranking (solo admin general, sin hospital seleccionado) --------
     ranking = []
     if current_user.is_admin and not f_hospital:
         totales = {}
-        for r in registros:
-            totales.setdefault(r.hospital, 0)
-            totales[r.hospital] += r.atenciones
+        for g in guardias:
+            total_pac = (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
+            totales.setdefault(g.hospital, 0)
+            totales[g.hospital] += total_pac
+
         ranking = sorted(
             ({"hospital": h, "atenciones": totales[h]} for h in totales),
             key=lambda x: x["atenciones"],
@@ -804,18 +918,20 @@ def dashboard():
         "dashboard.html",
         sel_hospital=sel_hospital,
         f_hospital=f_hospital,
-        f_desde=f_desde or "",
-        f_hasta=f_hasta or "",
+        f_desde=d_desde.isoformat() if d_desde else "",
+        f_hasta=d_hasta.isoformat() if d_hasta else "",
         kpi_atenciones=kpi_atenciones,
         kpi_ingresos=kpi_ingresos,
         kpi_traslados=kpi_traslados,
         kpi_defunciones=kpi_defunciones,
-        labels=json.dumps(dates),
-        data_atenciones=json.dumps(chart_atenciones),
-        data_ingresos=json.dumps(chart_ingresos),
-        data_traslados=json.dumps(chart_traslados),
-        data_defunciones=json.dumps(chart_defunciones),
-        ranking=ranking
+        labels=json.dumps(labels),
+        data_atenciones=json.dumps(data_atenciones),
+        data_ingresos=json.dumps(data_ingresos),
+        data_traslados=json.dumps(data_traslados),
+        data_defunciones=json.dumps(data_defunciones),
+        labels_int=json.dumps(labels_int),
+        data_internamientos=json.dumps(data_internamientos),
+        ranking=ranking,
     )
 
 
