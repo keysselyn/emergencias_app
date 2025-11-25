@@ -250,7 +250,7 @@ def healthz():
 
 
 # ==============================
-# PÁGINAS BASE / LOGIN
+# PÁGINAS BASE / LOGIN / Perfil de Usuario
 # ==============================
 @app.route('/')
 def index():
@@ -328,6 +328,50 @@ def logout():
     logout_user()
     flash("Sesión cerrada.", "success")
     return redirect(url_for("index"))
+
+
+@app.route('/perfil', methods=['GET', 'POST'])
+@login_required
+def perfil():
+    u = current_user
+
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password1 = request.form.get('password1') or ''
+        password2 = request.form.get('password2') or ''
+
+        if not username:
+            flash('El nombre de usuario es obligatorio.', 'danger')
+            return render_template('perfil.html', u=u)
+
+        existe = User.query.filter(User.id != u.id, User.username == username).first()
+        if existe:
+            flash('Ese nombre de usuario ya está en uso.', 'danger')
+            return render_template('perfil.html', u=u)
+
+        u.username = username
+        u.nombre = request.form.get("nombre")
+        u.apellido = request.form.get("apellido")
+        u.cedula = request.form.get("cedula")
+        u.especialidad = request.form.get("especialidad")
+        u.cargo = request.form.get("cargo")
+        u.exequatur = request.form.get("exequatur")
+        u.telefono = request.form.get("telefono")
+        u.email = request.form.get("email")
+
+        if password1 or password2:
+            if password1 != password2:
+                flash('Las contraseñas no coinciden.', 'danger')
+                return render_template('perfil.html', u=u)
+            u.set_password(password1)
+
+        db.session.commit()
+        flash('Perfil actualizado correctamente.', 'success')
+        return redirect(url_for('perfil'))
+
+    return render_template('perfil.html', u=u)
+
+
 
 
 # ======================================================================

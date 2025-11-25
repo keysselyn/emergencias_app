@@ -142,9 +142,18 @@
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="moreDropup">
 
-          
+          <li>
+  <a class="dropdown-item" href="{{ url_for('perfil') }}">
+    <i class="bi bi-person-circle me-1"></i> Mi perfil
+  </a>
+</li>
+
+
           {% if current_user.is_admin or current_user.is_hospital_admin %}
            {% if current_user.is_admin %}
+           <li class="dropdown-header small text-muted">
+                <hr></hr>
+              </li>
               <li class="dropdown-header small text-muted">
                 Administración general
               </li>

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+
+        <div class="d-flex align-items-center mb-3">
+          <div class="me-3 bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width:55px;height:55px;">
+            <i class="bi bi-person-circle text-primary fs-2"></i>
+          </div>
+          <div>
+            <h4 class="mb-0">Mi Perfil</h4>
+            <small class="text-muted">Actualiza tus datos personales y contraseña</small>
+          </div>
+        </div>
+
+        <!-- Mensajes Flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" class="vstack gap-3">
+
+          <!-- Username -->
+          <div>
+            <label class="form-label">Nombre de usuario</label>
+            <input type="text" name="username" class="form-control" 
+                   value="{{ u.username }}" required>
+          </div>
+
+          <!-- Datos personales -->
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Nombre</label>
+              <input type="text" name="nombre" class="form-control" value="{{ u.nombre or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Apellido</label>
+              <input type="text" name="apellido" class="form-control" value="{{ u.apellido or '' }}">
+            </div>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Cédula</label>
+              <input type="text" name="cedula" class="form-control" value="{{ u.cedula or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Teléfono</label>
+              <input type="text" name="telefono" class="form-control" value="{{ u.telefono or '' }}">
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Correo electrónico</label>
+            <input type="email" name="email" class="form-control" value="{{ u.email or '' }}">
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Especialidad</label>
+              <input type="text" name="especialidad" class="form-control" value="{{ u.especialidad or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Cargo</label>
+              <input type="text" name="cargo" class="form-control" value="{{ u.cargo or '' }}">
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Exequátur</label>
+            <input type="text" name="exequatur" class="form-control" value="{{ u.exequatur or '' }}">
+          </div>
+
+          <hr>
+
+          <!-- Cambio de contraseña -->
+          <h6 class="text-primary">Cambiar contraseña</h6>
+          <small class="text-muted">Déjalo vacío si no deseas cambiar la contraseña</small>
+
+          <div>
+            <label class="form-label">Nueva contraseña</label>
+            <input type="password" name="password1" class="form-control" autocomplete="new-password">
+          </div>
+
+          <div>
+            <label class="form-label">Confirmar nueva contraseña</label>
+            <input type="password" name="password2" class="form-control" autocomplete="new-password">
+          </div>
+
+          <div class="d-grid mt-3">
+            <button class="btn btn-primary">
+              <i class="bi bi-save me-1"></i> Guardar cambios
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
