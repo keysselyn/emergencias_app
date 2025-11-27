@@ -831,27 +831,29 @@ def render_pdf_from_html(html: str, pdf_filename: str = "reporte.pdf"):
 # ======================================================================
 #   DASHBOARD (Guardias + Internamientos)
 # ======================================================================
+import json
+from datetime import datetime, date
+from dateutil import parser
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    from models import GuardiaEmergencia, Internamiento  # por si no está arriba
-
     f_hospital = (request.args.get('hospital') or '').strip()
-    f_desde = request.args.get('desde')
-    f_hasta = request.args.get('hasta')
+    f_desde = request.args.get('desde') or ''
+    f_hasta = request.args.get('hasta') or ''
 
-    # -------- helper parse fecha --------
+    # ---------- Helper fechas ----------
     def parse_date(s):
         try:
-            return parser.parse(s).date()
+            return parser.parse(s).date() if s else None
         except Exception:
             return None
 
-    d_desde = parse_date(f_desde) if f_desde else None
-    d_hasta = parse_date(f_hasta) if f_hasta else None
+    d_desde = parse_date(f_desde)
+    d_hasta = parse_date(f_hasta)
 
-    # Si no ponen fechas → mes actual (1 al día de hoy)
     hoy = date.today()
+    # Si no hay fechas, usar mes actual
     if not d_desde and not d_hasta:
         d_desde = hoy.replace(day=1)
         d_hasta = hoy
@@ -861,122 +863,227 @@ def dashboard():
         if d_hasta and not d_desde:
             d_desde = d_hasta.replace(day=1)
 
+    # Corregir si vienen invertidas
     if d_desde and d_hasta and d_desde > d_hasta:
         d_desde, d_hasta = d_hasta, d_desde
 
-    # -------- Query base --------
-    qg = GuardiaEmergencia.query
-    qi = Internamiento.query
+    # ---------- Alcance por rol ----------
+    scope_hosp = user_hospital_scope()
+    # scope_hosp:
+    #   - None → admin general (puede ver todos / filtrar)
+    #   - "Hospital X" → admin hospital o usuario normal
 
-    # Alcance según rol
-    if not current_user.is_admin:
-        # Usuario normal o admin de hospital → su hospital
-        hosp_scope = current_user.hospital
-        qg = qg.filter(GuardiaEmergencia.hospital == hosp_scope)
-        qi = qi.filter(Internamiento.hospital == hosp_scope)
-        sel_hospital = hosp_scope or "Sin hospital"
+    if scope_hosp:
+        # Admin de hospital o usuario normal: fijo su hospital
+        sel_hospital = scope_hosp
+        f_hospital = scope_hosp
     else:
-        # Admin general puede ver todos o filtrar
-        if f_hospital:
-            qg = qg.filter(GuardiaEmergencia.hospital == f_hospital)
-            qi = qi.filter(Internamiento.hospital == f_hospital)
-            sel_hospital = f_hospital
-        else:
-            sel_hospital = "Todos"
+        # Admin general
+        sel_hospital = f_hospital or "Todos"
 
-    # Filtro fechas guardias (por fecha de guardia)
+    # ============================================================
+    #   1) GUARDIAS DE EMERGENCIA
+    # ============================================================
+    qg = GuardiaEmergencia.query
+    if f_hospital:
+        qg = qg.filter(GuardiaEmergencia.hospital == f_hospital)
+
     if d_desde:
         qg = qg.filter(GuardiaEmergencia.fecha >= d_desde)
-        qi = qi.filter(Internamiento.fecha >= d_desde)
     if d_hasta:
         qg = qg.filter(GuardiaEmergencia.fecha <= d_hasta)
-        qi = qi.filter(Internamiento.fecha <= d_hasta)
 
     guardias = qg.order_by(GuardiaEmergencia.fecha.asc()).all()
-    internamientos = qi.order_by(Internamiento.fecha.asc()).all()
 
-    # -------- KPIs (solo guardias) --------
+    # KPIs guardias
+    guardia_total_pacientes = 0
+    guardia_adultos = 0
+    guardia_pediatricos = 0
+    guardia_ginecologicas = 0
+    guardia_fallecidos = 0
+    guardia_referidos = 0
+    guardia_ingresados_total = 0
+
+    for g in guardias:
+        guardia_total_pacientes += (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
+        guardia_adultos += g.adultos or 0
+        guardia_pediatricos += g.pediatricos or 0
+        guardia_ginecologicas += g.ginecologicas or 0
+        guardia_fallecidos += g.fallecidos or 0
+        guardia_referidos += g.referidos or 0
+        guardia_ingresados_total += g.ingresados_total or 0
+
+    # ============================================================
+    #   2) INTERNAMIENTOS
+    # ============================================================
+    qi = Internamiento.query
+    if f_hospital:
+        qi = qi.filter(Internamiento.hospital == f_hospital)
+
+    if d_desde:
+        qi = qi.filter(Internamiento.fecha >= d_desde)
+    if d_hasta:
+        qi = qi.filter(Internamiento.fecha <= d_hasta)
+
+    internamientos_todos = qi.all()
+    internamientos_activos = [i for i in internamientos_todos if not i.egresado]
+    internamientos_egresados = [i for i in internamientos_todos if i.egresado]
+
+    kpi_internamientos_activos = len(internamientos_activos)
+    kpi_internamientos_egresados = len(internamientos_egresados)
+
+    # ============================================================
+    #   3) REGISTRO DIARIO DE EMERGENCIAS (EmergencyRecord)
+    #       → Solo para admin general / admin de hospital
+    # ============================================================
     kpi_atenciones = 0
     kpi_ingresos = 0
     kpi_traslados = 0
     kpi_defunciones = 0
-
-    for g in guardias:
-        total_pac = (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
-        kpi_atenciones += total_pac
-        kpi_ingresos += (g.ingresados_total or 0)
-        kpi_traslados += (g.referidos or 0)
-        kpi_defunciones += (g.fallecidos or 0)
-
-    # -------- Series para gráfico de GUARDIAS --------
-    series_g = {}
-    for g in guardias:
-        key = g.fecha.isoformat()
-        if key not in series_g:
-            series_g[key] = {
-                "atenciones": 0,
-                "ingresos": 0,
-                "traslados": 0,
-                "defunciones": 0,
-            }
-        total_pac = (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
-        series_g[key]["atenciones"] += total_pac
-        series_g[key]["ingresos"] += (g.ingresados_total or 0)
-        series_g[key]["traslados"] += (g.referidos or 0)
-        series_g[key]["defunciones"] += (g.fallecidos or 0)
-
-    labels = sorted(series_g.keys())
-    data_atenciones = [series_g[d]["atenciones"] for d in labels] if labels else []
-    data_ingresos = [series_g[d]["ingresos"] for d in labels] if labels else []
-    data_traslados = [series_g[d]["traslados"] for d in labels] if labels else []
-    data_defunciones = [series_g[d]["defunciones"] for d in labels] if labels else []
-
-    # -------- Series para gráfico de INTERNAMIENTOS --------
-    series_int = {}
-    for i in internamientos:
-        key = i.fecha.isoformat() if i.fecha else None
-        if not key:
-            continue
-        series_int.setdefault(key, 0)
-        series_int[key] += 1  # 1 ingreso por registro
-
-    labels_int = sorted(series_int.keys())
-    data_internamientos = [series_int[d] for d in labels_int] if labels_int else []
-
-    # -------- Ranking (solo admin general, sin hospital seleccionado) --------
+    labels = []
+    chart_atenciones = []
+    chart_ingresos = []
+    chart_traslados = []
+    chart_defunciones = []
     ranking = []
-    if current_user.is_admin and not f_hospital:
-        totales = {}
-        for g in guardias:
-            total_pac = (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
-            totales.setdefault(g.hospital, 0)
-            totales[g.hospital] += total_pac
 
-        ranking = sorted(
-            ({"hospital": h, "atenciones": totales[h]} for h in totales),
-            key=lambda x: x["atenciones"],
-            reverse=True
-        )[:5]
+    # nuevos: distribución de traslados por hospital de referencia
+    referral_counts = {}   # { "Hospital Regional Juan Pablo Pina": 23, ... }
+    motivo_counts = {}     # opcional: { "NEUROLOGÍA": 10, "TRAUMA": 5, ... }
+
+    if current_user.is_admin or current_user.is_hospital_admin:
+        qe = EmergencyRecord.query
+
+        if f_hospital:
+            qe = qe.filter(EmergencyRecord.hospital == f_hospital)
+        elif scope_hosp:
+            qe = qe.filter(EmergencyRecord.hospital == scope_hosp)
+
+        if d_desde:
+            qe = qe.filter(EmergencyRecord.fecha >= d_desde)
+        if d_hasta:
+            qe = qe.filter(EmergencyRecord.fecha <= d_hasta)
+
+        registros = qe.order_by(EmergencyRecord.fecha.asc()).all()
+
+        # KPIs de registro diario
+        for r in registros:
+            at = r.atenciones or 0
+            ing = r.ingresos or 0
+            tr = r.traslados or 0
+            de = r.defunciones or 0
+
+            kpi_atenciones += at
+            kpi_ingresos += ing
+            kpi_traslados += tr
+            kpi_defunciones += de
+
+            # series por fecha
+            key = r.fecha.isoformat()
+            if key not in labels:
+                labels.append(key)
+
+        # Series agregadas por fecha
+        series = {}
+        for r in registros:
+            key = r.fecha.isoformat()
+            if key not in series:
+                series[key] = {
+                    "atenciones": 0,
+                    "ingresos": 0,
+                    "traslados": 0,
+                    "defunciones": 0,
+                }
+            series[key]["atenciones"] += r.atenciones or 0
+            series[key]["ingresos"] += r.ingresos or 0
+            series[key]["traslados"] += r.traslados or 0
+            series[key]["defunciones"] += r.defunciones or 0
+
+            # distribución de traslados por hospital de referencia
+            if (r.traslados or 0) > 0:
+                hosp_ref = (r.hospital_referencia or "").strip()
+                if hosp_ref:
+                    referral_counts[hosp_ref] = referral_counts.get(hosp_ref, 0) + (r.traslados or 0)
+
+                motivo = (r.motivo_traslado or "").strip()
+                if motivo:
+                    motivo_counts[motivo] = motivo_counts.get(motivo, 0) + (r.traslados or 0)
+
+        labels = sorted(series.keys())
+        chart_atenciones = [series[d]["atenciones"] for d in labels]
+        chart_ingresos = [series[d]["ingresos"] for d in labels]
+        chart_traslados = [series[d]["traslados"] for d in labels]
+        chart_defunciones = [series[d]["defunciones"] for d in labels]
+
+        # Ranking de hospitales por atenciones (solo admin general sin filtro)
+        if current_user.is_admin and not f_hospital:
+            totales = {}
+            for r in registros:
+                totales.setdefault(r.hospital, 0)
+                totales[r.hospital] += r.atenciones or 0
+            ranking = sorted(
+                ({"hospital": h, "atenciones": totales[h]} for h in totales),
+                key=lambda x: x["atenciones"],
+                reverse=True
+            )[:5]
+
+    # top hospitales de referencia (traslados)
+    top_referrals = sorted(
+        ({"hospital": h, "traslados": referral_counts[h]} for h in referral_counts),
+        key=lambda x: x["traslados"],
+        reverse=True
+    )[:6]
+
+    referral_labels = [x["hospital"] for x in top_referrals]
+    referral_values = [x["traslados"] for x in top_referrals]
+
+    # opcional: top motivos de traslado (por si luego los quieres usar)
+    top_motivos = sorted(
+        ({"motivo": m, "traslados": motivo_counts[m]} for m in motivo_counts),
+        key=lambda x: x["traslados"],
+        reverse=True
+    )[:6]
+
+    motivo_labels = [x["motivo"] for x in top_motivos]
+    motivo_values = [x["traslados"] for x in top_motivos]
 
     return render_template(
-        "dashboard.html",
+        'dashboard.html',
+        # filtros
         sel_hospital=sel_hospital,
         f_hospital=f_hospital,
         f_desde=d_desde.isoformat() if d_desde else "",
         f_hasta=d_hasta.isoformat() if d_hasta else "",
+        # KPIs guardias
+        guardia_total_pacientes=guardia_total_pacientes,
+        guardia_adultos=guardia_adultos,
+        guardia_pediatricos=guardia_pediatricos,
+        guardia_ginecologicas=guardia_ginecologicas,
+        guardia_fallecidos=guardia_fallecidos,
+        guardia_referidos=guardia_referidos,
+        guardia_ingresados_total=guardia_ingresados_total,
+        # KPIs internamientos
+        kpi_internamientos_activos=kpi_internamientos_activos,
+        kpi_internamientos_egresados=kpi_internamientos_egresados,
+        # Datos de registro diario
         kpi_atenciones=kpi_atenciones,
         kpi_ingresos=kpi_ingresos,
         kpi_traslados=kpi_traslados,
         kpi_defunciones=kpi_defunciones,
         labels=json.dumps(labels),
-        data_atenciones=json.dumps(data_atenciones),
-        data_ingresos=json.dumps(data_ingresos),
-        data_traslados=json.dumps(data_traslados),
-        data_defunciones=json.dumps(data_defunciones),
-        labels_int=json.dumps(labels_int),
-        data_internamientos=json.dumps(data_internamientos),
+        data_atenciones=json.dumps(chart_atenciones),
+        data_ingresos=json.dumps(chart_ingresos),
+        data_traslados=json.dumps(chart_traslados),
+        data_defunciones=json.dumps(chart_defunciones),
         ranking=ranking,
+        # distribución de traslados por hospital de referencia
+        referral_labels=json.dumps(referral_labels),
+        referral_values=json.dumps(referral_values),
+        # motivos de traslado (por si los usas más adelante)
+        motivo_labels=json.dumps(motivo_labels),
+        motivo_values=json.dumps(motivo_values),
     )
+
 
 
 # ======================================================================
