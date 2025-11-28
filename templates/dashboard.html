@@ -9,20 +9,15 @@
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
 
   <div>
-    <h5 class="card-title mb-0">Registro diario de emergencias</h5>
+    <h5 class="card-title mb-0">Registro de Guardias de emergencias e Internamientos</h5>
     <small class="text-muted">
-      {{ sel_hospital }} — Análisis del flujo de pacientes
+      {{ sel_hospital }} — Análisis datallado de pacientes visto en emergencias y pacientes ingresados en planta. 
     </small>
   </div>
 
   <div class="d-flex flex-wrap gap-2">
    
 
-    <!-- Botón PDF -->
-    <a href="{{ url_for('emergencias_resumen_pdf', desde=f_desde, hasta=f_hasta) }}"
-       class="btn btn-outline-primary btn-sm d-md-inline-flex" target="_blank">
-      <i class="bi bi-file-earmark-pdf"></i> PDF Mensual
-    </a>
      <!-- Botón filtros -->
     <button class="btn btn-outline-secondary btn-sm "
             data-bs-toggle="offcanvas"
@@ -230,11 +225,21 @@
           </small>
         </div>
 
-        <button class="btn btn-outline-secondary btn-sm d-none d-md-inline-flex"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#dfilters">
-          <i class="bi bi-funnel"></i> Filtros
-        </button>
+        <div class="d-flex flex-wrap gap-2">
+   
+
+    <!-- Botón PDF -->
+    <a href="{{ url_for('emergencias_resumen_pdf', desde=f_desde, hasta=f_hasta) }}"
+       class="btn btn-outline-primary btn-sm d-md-inline-flex" target="_blank">
+      <i class="bi bi-file-earmark-pdf"></i> PDF Mensual
+    </a>
+     <!-- Botón filtros -->
+    <button class="btn btn-outline-secondary btn-sm "
+            data-bs-toggle="offcanvas"
+            data-bs-target="#dfilters">
+      <i class="bi bi-funnel"></i> Filtros
+    </button>
+  </div>
       </div>
 
       <!-- KPI CARDS -->
@@ -328,9 +333,51 @@
     </div>
   </div>
 
-  <!-- BLOQUE 3: TOP HOSPITALES (SOLO ADMIN GENERAL) -->
+  <style>
+  /* Circulito del ranking */
+  .rank-badge {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 50%;
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: .9rem;
+  }
+
+  @media (max-width: 420px) {
+    .rank-badge {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      font-size: .8rem;
+    }
+  }
+
+  /* Item del ranking con padding controlado para que la barra no pegue al borde */
+  .ranking-item {
+    padding-left: .5rem;
+    padding-right: .5rem;
+  }
+
+  /* Barra de progreso siempre dentro del ancho disponible */
+  .ranking-progress {
+    height: 6px;
+    width: 100%;
+    max-width: 100%;
+  }
+</style>
+
+<!-- BLOQUE 3: TOP HOSPITALES (SOLO ADMIN GENERAL) -->
 {% if current_user.is_admin and not f_hospital and ranking %}
-<div class="card shadow-sm mb-3">
+<div class="card shadow-sm mb-3 card-ranking">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <div>
@@ -341,42 +388,42 @@
 
     {% set max_at = ranking[0].atenciones if ranking and ranking[0].atenciones > 0 else 1 %}
 
-    <div class="list-group list-group-flush mt-2">
+    <div class="vstack mt-2">
       {% for row in ranking %}
       {% set pct = (row.atenciones * 100) // max_at %}
-      <div class="list-group-item px-0">
-        <div class="d-flex align-items-center justify-content-between gap-2">
+      <div class="ranking-row d-flex align-items-center gap-2">
 
-          <!-- Número de ranking -->
-          <div class="rounded-circle bg-primary-subtle text-primary fw-semibold d-flex align-items-center justify-content-center"
-               style="width:30px;height:30px;">
-            {{ loop.index }}
-          </div>
-
-          <!-- Nombre + barra de proporción -->
-          <div class="flex-grow-1">
-            <div class="fw-semibold text-truncate" title="{{ row.hospital }}">
-              <i class="bi bi-hospital me-1 text-muted"></i>{{ row.hospital }}
-            </div>
-            <div class="progress mt-1" style="height: 6px;">
-              <div class="progress-bar" role="progressbar"
-                   style="width: {{ pct }}%;"></div>
-            </div>
-          </div>
-
-          <!-- Valor absoluto y porcentaje -->
-          <div class="text-end" style="min-width:70px;">
-            <div class="fw-bold">{{ row.atenciones }}</div>
-            <small class="text-muted">{{ pct }}%</small>
-          </div>
-
+        <!-- Número -->
+        <div class="rank-badge">
+          {{ loop.index }}
         </div>
+
+        <!-- Nombre + barra -->
+  <div class="flex-grow-1 hospital-block">
+  <div class="fw-semibold hospital-name" title="{{ row.hospital }}">
+    <i class="bi bi-hospital me-1 text-muted"></i>
+    {{ row.hospital }}
+  </div>
+
+  <div class="progress mt-1 hospital-progress">
+    <div class="progress-bar" role="progressbar" style="width: {{ pct }}%;"></div>
+  </div>
+</div>
+
+
+        <!-- Valor y % -->
+        <div class="text-end ms-1 flex-shrink-0" style="min-width:60px;">
+          <div class="fw-bold">{{ row.atenciones }}</div>
+          <small class="text-muted">{{ pct }}%</small>
+        </div>
+
       </div>
       {% endfor %}
     </div>
   </div>
 </div>
 {% endif %}
+
 
 
 {% endif %} {# cierre bloque admin / admin hospital #}

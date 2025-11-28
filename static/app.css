@@ -164,7 +164,6 @@ html, body {
   justify-content: center;
   align-items: center;
 }
-<<<<<<< HEAD
 
 /* Mantiene el modal centrado correctamente */
 .modal-dialog {
@@ -192,6 +191,91 @@ html, body {
     max-width: 95%;
   }
 }
+/* CARD de ranking: control puntual */
+  .card-ranking {
+    overflow: hidden;
+  }
 
-=======
->>>>>>> 163314f5570d16dae21953792ae59acadf960e9a
+  .card-ranking .card-body {
+    padding: 0.75rem 1rem;
+  }
+
+  .ranking-row {
+    padding: 0.4rem 0.25rem;
+    border-radius: 0.5rem;
+    overflow: hidden;          /* Nada se sale del row */
+  }
+
+  .ranking-row + .ranking-row {
+    margin-top: 0.35rem;
+  }
+
+  .rank-badge {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    border-radius: 50%;
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: .85rem;
+  }
+
+  .ranking-middle {
+    flex: 1 1 auto;
+    min-width: 0;              /* clave para que truncate funcione */
+  }
+
+
+
+  .ranking-progress {
+    height: 6px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  @media (max-width: 420px) {
+    .card-ranking .card-body {
+      padding: 0.75rem 0.75rem;
+    }
+    .rank-badge {
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      min-height: 26px;
+      font-size: .75rem;
+    }
+  }
+
+/* Evita overflow horizontal del card */
+.hospital-block {
+  min-width: 0;        /* Clave para evitar desbordes */
+}
+
+/* hospital-name acepta 2 líneas */
+.hospital-name {
+  white-space: normal !important;
+  line-height: 1.1;
+}
+
+/* Control estricto de la barra dentro del card */
+.hospital-progress {
+  height: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Mobile layout */
+@media (max-width: 576px) {
+  .hospital-name {
+    font-size: 0.85rem;
+  }
+}
+</style>
+
+
