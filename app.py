@@ -8,6 +8,14 @@ from flask_login import (
     LoginManager, login_user, logout_user, current_user, login_required
 )
 from datetime import datetime, date, timedelta
+anio_actual = datetime.now().year
+mes_actual = datetime.now().month
+# Para generar la gráfica en imagen
+import matplotlib
+matplotlib.use("Agg")  # importante: backend sin interfaz gráfica
+import matplotlib.pyplot as plt
+import uuid
+
 from io import StringIO, BytesIO
 from functools import wraps
 import csv, json, os
@@ -1082,7 +1090,298 @@ def dashboard():
         # motivos de traslado (por si los usas más adelante)
         motivo_labels=json.dumps(motivo_labels),
         motivo_values=json.dumps(motivo_values),
+        anio_actual=anio_actual,
+        mes_actual=mes_actual
+
     )
+
+from sqlalchemy import func
+from datetime import date, timedelta, datetime # Asegúrate de que datetime está importado
+from dateutil import parser
+import uuid
+import matplotlib.pyplot as plt
+import os
+import logging # Asegúrate de importar logging
+
+# Configurar un logger (opcional, pero recomendado)
+logger = logging.getLogger(__name__)
+
+# NOTA: Asegúrate de que app, db, request, login_required, admin_required,
+# render_template, render_pdf_from_html y EmergencyRecord (de models)
+# están disponibles en tu entorno.
+
+def generar_grafica_dona_resumen(resumen_rows):
+    """
+    Genera la gráfica de dona dentro de static/img/ y devuelve la ruta /static/img/archivo.png
+    """
+    if not resumen_rows:
+        return None
+
+    tmp_dir = os.path.join(app.static_folder, "img")  # <--- aquí cambiamos
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    labels = [row["hospital"] for row in resumen_rows]
+    valores = [row["atenciones"] for row in resumen_rows]
+
+    if all(v == 0 for v in valores):
+        return None
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    wedges, texts, autotexts = ax.pie(
+        valores,
+        labels=labels,
+        autopct='%1.1f%%',
+        startangle=90,
+        pctdistance=0.8,
+        labeldistance=1.1,
+        wedgeprops=dict(width=0.35)
+    )
+
+    ax.set(aspect="equal")
+    ax.set_title("ATENCIONES POR HOSPITAL", fontsize=12)
+
+    for t in autotexts:
+        t.set_fontsize(8)
+    for t in texts:
+        t.set_fontsize(8)
+
+    filename = f"resumen_dona_{uuid.uuid4().hex}.png"
+    filepath = os.path.join(tmp_dir, filename)
+    fig.savefig(filepath, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+
+    # Esta ruta es la que xhtml2pdf usará para mostrar la imagen
+    return f"/static/img/{filename}"
+
+# IMPORTS necesarios (si ya los tienes arriba, no los dupliques)
+from sqlalchemy import func
+from datetime import date, datetime, timedelta
+from dateutil import parser
+import os
+import uuid
+import matplotlib
+matplotlib.use("Agg")  # backend sin interfaz gráfica (para servidor)
+import matplotlib.pyplot as plt
+
+# ============================================================
+#   PDF EMERGENCIAS RECORD (EmergencyRecord)
+#       → Solo para admin general / admin de hospital
+# ============================================================
+
+def generar_grafica_dona_resumen(resumen_rows):
+    """
+    Genera una imagen PNG con una gráfica de dona de ATENCIONES por hospital.
+    Devuelve la ruta tipo /static/img/archivo.png para usarla en el template PDF.
+    """
+    if not resumen_rows:
+        return None
+
+    # Guardar en static/img/ (que es la carpeta que usas en Render)
+    tmp_dir = os.path.join(app.static_folder, "img")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    labels = [row["hospital"] for row in resumen_rows]
+    valores = [row["atenciones"] for row in resumen_rows]
+
+    # Si todos son 0, no vale la pena dibujar
+    if all(v == 0 for v in valores):
+        return None
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    # dona con etiquetas y porcentajes
+    wedges, texts, autotexts = ax.pie(
+        valores,
+        labels=labels,
+        autopct='%1.1f%%',
+        startangle=90,
+        pctdistance=0.8,
+        labeldistance=1.1,
+        wedgeprops=dict(width=0.35)
+    )
+
+    ax.set(aspect="equal")
+    ax.set_title("ATENCIONES POR HOSPITAL", fontsize=12)
+
+    for t in autotexts:
+        t.set_fontsize(8)
+    for t in texts:
+        t.set_fontsize(8)
+
+    filename = f"resumen_dona_{uuid.uuid4().hex}.png"
+    filepath = os.path.join(tmp_dir, filename)
+
+    fig.savefig(filepath, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+
+    # ruta accesible por el navegador / xhtml2pdf
+    return f"/static/img/{filename}"
+
+
+@app.route("/emergencias/resumen_pdf")
+@login_required
+@admin_required  # o tu decorador equivalente para admin general / admin hospital
+def emergencias_resumen_pdf():
+    """
+    Resumen por hospital (tabla + dona) en PDF.
+
+    Prioridad de filtros:
+      1) ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+      2) ?anio=YYYY&mes=1-12 (mensual)
+      3) Mes actual si no se envía nada
+    """
+    # ---------- 1. Intentar usar desde/hasta del filtro ----------
+    desde = None
+    hasta = None
+
+    desde_str = request.args.get("desde")
+    hasta_str = request.args.get("hasta")
+
+    if desde_str:
+        try:
+            desde = parser.parse(desde_str).date()
+        except Exception:
+            desde = None
+
+    if hasta_str:
+        try:
+            hasta = parser.parse(hasta_str).date()
+        except Exception:
+            hasta = None
+
+    # Si solo viene uno, completamos el otro
+    if desde and not hasta:
+        hasta = date.today()
+    if hasta and not desde:
+        desde = hasta.replace(day=1)
+
+    # ---------- 2. Si no hay desde/hasta → usar anio/mes o mes actual ----------
+    if not desde or not hasta:
+        try:
+            anio = int(request.args.get("anio", datetime.now().year))
+        except ValueError:
+            anio = datetime.now().year
+
+        try:
+            mes = int(request.args.get("mes", datetime.now().month))
+            if not (1 <= mes <= 12):
+                mes = datetime.now().month
+        except ValueError:
+            mes = datetime.now().month
+
+        desde = date(anio, mes, 1)
+        if mes == 12:
+            hasta = date(anio + 1, 1, 1) - timedelta(days=1)
+        else:
+            hasta = date(anio, mes + 1, 1) - timedelta(days=1)
+
+    # ---------- 3. Etiqueta del rango para el encabezado ----------
+    meses_es = [
+        "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+        "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+    ]
+
+    # Si parece un mes completo → "NOVIEMBRE 2025"
+    if (
+        desde.day == 1
+        and desde.month == hasta.month
+        and desde.year == hasta.year
+        and hasta.day >= 28
+    ):
+        mes_label = f"{meses_es[desde.month - 1]} {desde.year}"
+    else:
+        # Rango literal
+        mes_label = f"Del {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
+
+    # ---------- 4. Query agrupada por hospital ----------
+    from models import EmergencyRecord
+
+    base_q = db.session.query(
+        EmergencyRecord.hospital.label("hospital"),
+        func.sum(EmergencyRecord.atenciones).label("atenciones"),
+        func.sum(EmergencyRecord.ingresos).label("ingresos"),
+        func.sum(EmergencyRecord.alta_voluntario).label("alta_voluntario"),
+        func.sum(EmergencyRecord.traslados).label("traslados"),
+        func.sum(EmergencyRecord.defunciones).label("defunciones"),
+        func.count(
+            func.nullif(
+                func.length(
+                    func.coalesce(EmergencyRecord.eventualidades, "")
+                ),
+                0
+            )
+        ).label("eventualidades_count"),
+    ).filter(
+        EmergencyRecord.fecha >= desde,
+        EmergencyRecord.fecha <= hasta
+    ).group_by(
+        EmergencyRecord.hospital
+    ).order_by(
+        func.sum(EmergencyRecord.atenciones).desc()
+    )
+
+    resultados = base_q.all()
+
+    # ---------- 5. Construir resumen + totales ----------
+    resumen = []
+    totales = {
+        "atenciones": 0,
+        "ingresos": 0,
+        "alta_voluntario": 0,
+        "traslados": 0,
+        "defunciones": 0,
+        "eventualidades_count": 0,
+    }
+
+    for row in resultados:
+        data = {
+            "hospital": row.hospital,
+            "atenciones": int(row.atenciones or 0),
+            "ingresos": int(row.ingresos or 0),
+            "alta_voluntario": int(row.alta_voluntario or 0),
+            "traslados": int(row.traslados or 0),
+            "defunciones": int(row.defunciones or 0),
+            "eventualidades_count": int(row.eventualidades_count or 0),
+        }
+        resumen.append(data)
+
+        for k in ("atenciones", "ingresos", "alta_voluntario", "traslados", "defunciones"):
+            totales[k] += data[k]
+        totales["eventualidades_count"] += data["eventualidades_count"]
+
+    # ---------- 6. Gráfica de dona + render PDF ----------
+    chart_url = generar_grafica_dona_resumen(resumen)
+
+    html = render_template(
+        "resumen_emergencias_pdf.html",
+        mes_label=mes_label,
+        desde=desde,
+        hasta=hasta,
+        resumen=resumen,
+        totales=totales,
+        chart_url=chart_url,
+        generated_at=datetime.now(),
+    )
+
+    filename = f"resumen_emergencias_{desde.strftime('%Y%m%d')}_{hasta.strftime('%Y%m%d')}.pdf"
+    response = render_pdf_from_html(html, pdf_filename=filename)
+
+    # ---------- 7. Eliminar imagen temporal ----------
+    if chart_url:
+        # chart_url: /static/img/xxx.png  → FS:  /app/static/img/xxx.png
+        fs_path = chart_url.replace("/static", app.static_folder)
+        try:
+            if os.path.exists(fs_path):
+                os.remove(fs_path)
+                app.logger.info(f"Imagen temporal eliminada: {fs_path}")
+        except Exception as e:
+            app.logger.warning(f"No se pudo eliminar imagen temporal {fs_path}: {e}")
+
+    return response
+
+
+# =========================================================================
 
 
 

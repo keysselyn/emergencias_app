@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Resumen asistencias y traslados</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      color: #000;
+    }
+    .titulo {
+      text-align: center;
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .subtitulo {
+      text-align: center;
+      font-size: 11px;
+      margin-bottom: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+    }
+    th, td {
+      border: 1px solid #333;
+      padding: 3px 4px;
+    }
+    th {
+      background-color: #005A9C;
+      color: #fff;
+      font-size: 10px;
+      text-align: center;
+    }
+    td {
+      font-size: 10px;
+    }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .totales-row {
+      font-weight: bold;
+      background-color: #f0f0f0;
+    }
+    .chart-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+    .footer {
+      margin-top: 12px;
+      font-size: 9px;
+      text-align: right;
+      color: #666;
+    }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed; /* 🔥 evita desbordes */
+    font-size: 11px;
+  }
+
+  th, td {
+    border: 1px solid #777;
+    padding: 4px 6px;
+    word-wrap: break-word; /* 🔥 permite cortar texto largo */
+    text-align: center;
+  }
+
+  th {
+    background: #63abfd;
+    font-weight: bold;
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .totales-row {
+    background: #63abfd;
+    font-weight: bold;
+  }
+
+  /* Control estricto para que nunca rompa página feo */
+  tr {
+    page-break-inside: avoid;
+  }
+</style>
+
+</head>
+<body>
+
+  <div class="titulo">
+    RESUMEN ASISTENCIAS Y TRASLADOS {{ mes_label }}
+  </div>
+  <div class="subtitulo">
+    Periodo del {{ desde.strftime("%d/%m/%Y") }} al {{ hasta.strftime("%d/%m/%Y") }}
+  </div>
+
+  <!-- TABLA PRINCIPAL -->
+  
+<table>
+  <thead>
+    <tr>
+<th style="width: 30%;">HOSPITAL</th>
+<th style="width: 10%;">ATENCIONES</th>
+<th style="width: 10%;">INGRESOS</th>
+<th style="width: 12%;">ALTA VOLUNTARIA</th>
+<th style="width: 10%;">TRASLADOS</th>
+<th style="width: 12%;">DEFUNCIONES</th>
+<th style="width: 16%;">EVENTUALIDADES</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for row in resumen %}
+    <tr>
+      <td>{{ row.hospital }}</td>
+      <td class="text-right">{{ row.atenciones }}</td>
+      <td class="text-right">{{ row.ingresos }}</td>
+      <td class="text-right">{{ row.alta_voluntario }}</td>
+      <td class="text-right">{{ row.traslados }}</td>
+      <td class="text-right">{{ row.defunciones }}</td>
+      <td class="text-right">{{ row.eventualidades_count }}</td>
+    </tr>
+    {% endfor %}
+
+    {% if resumen %}
+    <tr class="totales-row">
+      <td>TOTALES</td>
+      <td class="text-right">{{ totales.atenciones }}</td>
+      <td class="text-right">{{ totales.ingresos }}</td>
+      <td class="text-right">{{ totales.alta_voluntario }}</td>
+      <td class="text-right">{{ totales.traslados }}</td>
+      <td class="text-right">{{ totales.defunciones }}</td>
+      <td class="text-right">{{ totales.eventualidades_count }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="7" class="text-center">
+        No hay registros de emergencias en el periodo seleccionado.
+      </td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+
+  <!-- GRÁFICA TIPO DONA (si existe) -->
+  {% if chart_url %}
+  <div class="chart-title">
+    ATENCIONES POR HOSPITAL
+  </div>
+  <div>
+    <img src="{{ chart_url }}" alt="Gráfica de atenciones" style="width: 100%; max-height: 360px;">
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    Generado el {{ generated_at.strftime("%d/%m/%Y %H:%M") }}
+  </div>
+
+</body>
+</html>
