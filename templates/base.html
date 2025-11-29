@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>{% block title %}Emergencias{% endblock %}</title>
+    <title>{% block title %}Emergencias SRS - V{% endblock %}</title>
 
     <!-- PWA -->
     <meta name="theme-color" content="#0d6efd">
@@ -33,42 +33,131 @@
   </head>
   <body>
     <!-- Topbar minimal -->
-    <nav class="navbar navbar-dark bg-dark sticky-top">
-      <div class="container-fluid">
-        <button class="btn btn-outline-light btn-sm d-lg-none" onclick="history.back()" title="Atrás">
-          <i class="bi bi-chevron-left"></i>
-        </button>
+    <nav class="navbar navbar-dark bg-primary sticky-top shadow-sm">
+  <div class="container-fluid d-flex align-items-center justify-content-between">
 
-        <a class="navbar-brand ms-2" href="/">Emergencias</a>
+    <!-- LADO IZQUIERDO: atrás + marca + hospital -->
+    <div class="d-flex align-items-center gap-2">
+      <!-- Botón atrás (solo móvil) -->
+      <button class="btn btn-topbar btn-outline-light d-lg-none"
+              onclick="history.back()"
+              title="Atrás">
+        <i class="bi bi-chevron-left"></i>
+      </button>
 
-        {% if current_user.is_authenticated %}
-          <!-- Info de hospital y rol (solo en pantallas medianas en adelante) -->
-          <span class="navbar-text small text-light d-none d-md-inline">
-            {{ current_user.hospital or 'Sin hospital' }} ·
-            {% if current_user.is_admin %}
-              Admin general
-            {% elif current_user.is_hospital_admin %}
-              Admin de hospital
-            {% else %}
-              Usuario
-            {% endif %}
-          </span>
-        {% endif %}
+      <!-- Marca -->
+      <a class="navbar-brand d-flex align-items-center gap-2 mb-0" href="/">
+        <i class="bi bi-activity fs-5"></i>
+        <span class="fw-semibold">Emergencias SRS-V</span>
+      </a>
 
-        <div class="d-flex align-items-center gap-2">
-          <button id="btnInstall" class="btn btn-outline-success btn-sm d-none d-sm-inline-flex">
-            <i class="bi bi-download"></i>&nbsp;Instalar
+      {% if current_user.is_authenticated %}
+        <!-- Chip de hospital (solo md+) -->
+        <span class="badge rounded-pill bg-light text-primary d-none d-md-inline-flex align-items-center">
+          <i class="bi bi-hospital me-1"></i>
+          {{ current_user.hospital or 'Sin hospital' }}
+        </span>
+      {% endif %}
+    </div>
+
+    <!-- LADO DERECHO: instalar + usuario / login -->
+    <div class="d-flex align-items-center gap-2">
+
+      <!-- Botón instalar PWA -->
+      <button id="btnInstall"
+              class="btn btn-topbar btn-outline-light d-none d-sm-inline-flex">
+        <i class="bi bi-download me-1"></i>
+        <span class="d-none d-md-inline">Instalar</span>
+        <span class="d-inline d-md-none"><i class="bi bi-phone"></i></span>
+      </button>
+
+      {% if current_user.is_authenticated %}
+        <!-- Dropdown de usuario -->
+        <div class="dropdown">
+          <button class="btn btn-topbar btn-outline-light d-flex align-items-center gap-2"
+                  type="button"
+                  id="userMenu"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false">
+            <!-- Avatar -->
+            <span class="topbar-avatar">
+              {{ (current_user.nombre or '?')[0] }}
+            </span>
+
+            <!-- Nombre + rol (compacto, responsive) -->
+            <span class="d-none d-sm-flex flex-column align-items-start text-start">
+              <span class="fw-semibold small">
+                {{ current_user.nombre }} {{ current_user.apellido }}
+              </span>
+              <span class="small user-role">
+                {% if current_user.is_admin %}
+                  Admin general
+                {% elif current_user.is_hospital_admin %}
+                  Admin de hospital
+                {% else %}
+                  Usuario
+                {% endif %}
+              </span>
+            </span>
+
+            <i class="bi bi-chevron-down small d-none d-sm-inline"></i>
           </button>
-          {% if current_user.is_authenticated %}
-            <a class="btn btn-outline-light btn-sm" href="/logout">
-              <i class="bi bi-box-arrow-right"></i>
-            </a>
-          {% else %}
-            <a class="btn btn-primary btn-sm" href="/login">Ingresar</a>
-          {% endif %}
+
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li class="dropdown-header small">
+              <div class="fw-semibold">
+                {{ current_user.nombre }} {{ current_user.apellido }}
+              </div>
+              <div class="text-muted">
+                {% if current_user.is_admin %}
+                  Admin general
+                {% elif current_user.is_hospital_admin %}
+                  Admin de hospital
+                {% else %}
+                  Usuario
+                {% endif %}
+              </div>
+              {% if current_user.hospital %}
+              <div class="small mt-1">
+                <i class="bi bi-hospital me-1"></i>{{ current_user.hospital }}
+              </div>
+              {% endif %}
+            </li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li>
+              <a class="dropdown-item" href="{{ url_for('perfil') }}">
+                <i class="bi bi-person-circle me-2"></i> Mi perfil
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('listar') }}">
+                <i class="bi bi-journal-medical me-2"></i> Registros de emergencias
+              </a>
+            </li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li>
+              <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                <i class="bi bi-box-arrow-right me-2"></i> Cerrar sesión
+              </a>
+            </li>
+          </ul>
         </div>
-      </div>
-    </nav>
+      {% else %}
+        <!-- No autenticado -->
+        <a class="btn btn-topbar btn-light text-primary" href="{{ url_for('login') }}">
+          <i class="bi bi-box-arrow-in-right me-1"></i> Ingresar
+        </a>
+      {% endif %}
+    </div>
+
+  </div>
+</nav>
+
+
 
     <div class="container py-3">
       {% with messages = get_flashed_messages(with_categories=true) %}

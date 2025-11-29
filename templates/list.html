@@ -20,9 +20,10 @@
 
     <!-- Resumen simple -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-      <span class="badge bg-primary-subtle text-primary">
-        <i class="bi bi-list-ul me-1"></i> {{ registros|length }} registro(s)
-      </span>
+<span class="badge bg-primary-subtle text-primary">
+  <i class="bi bi-list-ul me-1"></i>
+ {{ total_registros }} registro(s) en total
+</span>
       {% if current_user.is_admin and request.args.get('hospital') %}
         <span class="badge bg-secondary-subtle text-secondary">
           <i class="bi bi-hospital me-1"></i> {{ request.args.get('hospital') }}
@@ -66,6 +67,7 @@
     </div>
   </div>
 </div>
+
 
 <!-- Tarjetas móviles (solo en pantallas pequeñas) -->
 <div class="mobile-list d-block d-md-none mb-3">
@@ -186,6 +188,135 @@
     </tbody>
   </table>
 </div>
+
+
+{% if pages and pages > 1 %}
+
+  {# ========= PAGINACIÓN ESCRITORIO (md+) ========= #}
+  <nav class="mt-3 d-none d-md-block" aria-label="Paginación">
+    <div class="d-flex justify-content-end mb-1">
+      <div class="text-muted small me-3">
+        Página <strong>{{ page }}</strong> de <strong>{{ pages }}</strong> · {{ total_registros }} registro(s)
+      </div>
+    </div>
+
+    <ul class="pagination pagination-sm justify-content-end flex-wrap gap-1">
+
+      <!-- PRIMERA -->
+      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+        <a class="page-link rounded-pill shadow-sm border-0 px-3"
+           href="{{ url_for('listar', page=1,
+                            hospital=request.args.get('hospital',''),
+                            desde=request.args.get('desde',''),
+                            hasta=request.args.get('hasta','')) }}">
+          <i class="bi bi-chevron-double-left"></i>
+        </a>
+      </li>
+
+      <!-- ANTERIOR -->
+      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+        <a class="page-link rounded-pill shadow-sm border-0 px-3"
+           href="{{ url_for('listar', page=page-1 if page>1 else 1,
+                            hospital=request.args.get('hospital',''),
+                            desde=request.args.get('desde',''),
+                            hasta=request.args.get('hasta','')) }}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      </li>
+
+      <!-- NÚMEROS -->
+      {% set window = 1 %}
+      {% set ns = namespace(last_shown=0) %}
+
+      {% for p in range(1, pages + 1) %}
+        {% if p == 1 or p == pages or (p >= page - window and p <= page + window) %}
+          
+          {% if ns.last_shown + 1 < p %}
+            <li class="page-item disabled">
+              <span class="page-link rounded-pill border-0 px-3 text-muted">…</span>
+            </li>
+          {% endif %}
+
+          <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link rounded-pill border-0 px-3 
+                      {% if p == page %}fw-semibold shadow-sm bg-primary text-white{% else %}shadow-sm{% endif %}"
+               href="{{ url_for('listar', page=p,
+                                hospital=request.args.get('hospital',''),
+                                desde=request.args.get('desde',''),
+                                hasta=request.args.get('hasta','')) }}">
+              {{ p }}
+            </a>
+          </li>
+
+          {% set ns.last_shown = p %}
+
+        {% endif %}
+      {% endfor %}
+
+      <!-- SIGUIENTE -->
+      <li class="page-item {% if page >= pages %}disabled{% endif %}">
+        <a class="page-link rounded-pill shadow-sm border-0 px-3"
+           href="{{ url_for('listar', page=page+1 if page<pages else pages,
+                            hospital=request.args.get('hospital',''),
+                            desde=request.args.get('desde',''),
+                            hasta=request.args.get('hasta','')) }}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </li>
+
+      <!-- ÚLTIMA -->
+      <li class="page-item {% if page >= pages %}disabled{% endif %}">
+        <a class="page-link rounded-pill shadow-sm border-0 px-3"
+           href="{{ url_for('listar', page=pages,
+                            hospital=request.args.get('hospital',''),
+                            desde=request.args.get('desde',''),
+                            hasta=request.args.get('hasta','')) }}">
+          <i class="bi bi-chevron-double-right"></i>
+        </a>
+      </li>
+
+    </ul>
+  </nav>
+
+
+  {# ========= PAGINACIÓN MÓVIL (xs–sm) ========= #}
+  <nav class="mt-3 d-block d-md-none" aria-label="Paginación móvil">
+
+    <div class="d-flex justify-content-start mb-1">
+      <span class="text-muted small">
+        Página <strong>{{ page }}</strong> / <strong>{{ pages }}</strong>
+      </span>
+    </div>
+
+    <div class="d-flex justify-content-start gap-2">
+
+      <!-- ANTERIOR -->
+      <a class="btn btn-light border rounded-pill px-3 shadow-sm {% if page <= 1 %}disabled{% endif %}"
+         href="{{ url_for('listar',
+                          page=page-1 if page>1 else 1,
+                          hospital=request.args.get('hospital',''),
+                          desde=request.args.get('desde',''),
+                          hasta=request.args.get('hasta','')) }}">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+
+      <!-- SIGUIENTE -->
+      <a class="btn btn-light border rounded-pill px-3 shadow-sm {% if page >= pages %}disabled{% endif %}"
+         href="{{ url_for('listar',
+                          page=page+1 if page<pages else pages,
+                          hospital=request.args.get('hospital',''),
+                          desde=request.args.get('desde',''),
+                          hasta=request.args.get('hasta','')) }}">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+
+    </div>
+  </nav>
+
+{% endif %}
+
+
+
 
 
 <!-- Offcanvas filtros -->

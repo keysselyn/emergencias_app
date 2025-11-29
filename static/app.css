@@ -276,6 +276,59 @@ html, body {
     font-size: 0.85rem;
   }
 }
-</style>
+
+/* Botones homogéneos en la barra superior */
+.btn-topbar {
+  border-radius: 999px;
+  padding-inline: 0.9rem;
+  padding-block: 0.25rem;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 32px;
+}
+
+/* Avatar redondo estilo Material */
+.topbar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0d6efd;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+/* Ajuste dropdown más moderno */
+.navbar .dropdown-menu {
+  border-radius: 12px;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+  border: none;
+}
+.navbar .dropdown-item {
+  font-size: 0.9rem;
+}
+.navbar .dropdown-header {
+  font-size: 0.8rem;
+}
+
+/* Cuando el dropdown está abierto, oscurecer rol */
+.dropdown.show .user-role,
+.dropdown.show .user-name {
+  color: #212529 !important;   /* color oscuro */
+}
+/* Cuando el dropdown está abierto, avatar oscuro */
+.dropdown.show .topbar-avatar {
+  background: #212529 !important;   /* oscuro */
+  color: #212529 !important;           /* letra blanca */
+  transition: all .15s ease-in-out;
+}
+
 
 

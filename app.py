@@ -525,14 +525,22 @@ def listar():
     f_desde = request.args.get("desde")
     f_hasta = request.args.get("hasta")
 
+    # Paginación
+    page = request.args.get("page", 1, type=int)
+    if page < 1:
+        page = 1
+    per_page = 8  # puedes ajustar el tamaño de página
+
     q = EmergencyRecord.query
 
+    # Filtro por hospital según rol
     if not current_user.is_admin:
         q = q.filter(EmergencyRecord.hospital == current_user.hospital)
     else:
         if f_hospital:
             q = q.filter(EmergencyRecord.hospital == f_hospital)
 
+    # Parse de fechas
     def parse_date(s):
         try:
             return parser.parse(s).date()
@@ -547,8 +555,30 @@ def listar():
     if d_hasta:
         q = q.filter(EmergencyRecord.fecha <= d_hasta)
 
-    registros = q.order_by(EmergencyRecord.fecha.desc(), EmergencyRecord.id.desc()).all()
-    return render_template("list.html", registros=registros)
+    # Total de registros para la paginación
+    total_registros = q.count()
+
+    # Calcular número total de páginas
+    pages = (total_registros + per_page - 1) // per_page if total_registros > 0 else 1
+    if page > pages:
+        page = pages
+
+    # Traer solo la página actual
+    registros = (
+        q.order_by(EmergencyRecord.fecha.desc(), EmergencyRecord.id.desc())
+         .offset((page - 1) * per_page)
+         .limit(per_page)
+         .all()
+    )
+
+    return render_template(
+        "list.html",
+        registros=registros,
+        page=page,
+        pages=pages,
+        per_page=per_page,
+        total_registros=total_registros,
+    )
 
 
 # ================== EXPORTAR CSV ==================
@@ -1931,6 +1961,67 @@ def guardias_pdf(g_id):
     )
     filename = f"guardia_{g.hospital.replace(' ', '_')}_{g.fecha.isoformat()}.pdf"
     return render_pdf_from_html(html, pdf_filename=filename)
+
+
+# ======================================================================
+#   Trar Datos de la Guardia a Reporte Diario
+# ======================================================================
+
+@app.route("/api/guardia_por_dia", methods=["GET"])
+@login_required
+def api_guardia_por_dia():
+    from models import GuardiaEmergencia  # ya está importado arriba, pero por si acaso
+
+    fecha_str = request.args.get("fecha", "").strip()
+    if not fecha_str:
+        return jsonify({"ok": False, "error": "Falta la fecha."}), 400
+
+    try:
+        fecha = parser.parse(fecha_str).date()
+    except Exception:
+        return jsonify({"ok": False, "error": "Fecha inválida."}), 400
+
+    # Hospital según rol
+    if current_user.is_admin:
+        hospital = (request.args.get("hospital") or "").strip()
+        if not hospital:
+            return jsonify({"ok": False, "error": "Falta seleccionar el hospital."}), 400
+    else:
+        hospital = current_user.hospital
+
+    if not hospital:
+        return jsonify({"ok": False, "error": "El usuario no tiene hospital asignado."}), 400
+
+    guardia = GuardiaEmergencia.query.filter_by(
+        fecha=fecha,
+        hospital=hospital
+    ).first()
+
+    if not guardia:
+        return jsonify({
+            "ok": True,
+            "found": False,
+            "message": "No hay guardia registrada para esa fecha en este hospital."
+        }), 200
+
+    # Mapeo de campos: ajusta si quieres otra lógica
+    total_pacientes = (
+        (guardia.total_matutino or 0) +
+        (guardia.total_vespertino or 0) +
+        (guardia.total_nocturno or 0)
+    )
+
+    data = {
+        "ok": True,
+        "found": True,
+        "atenciones": total_pacientes,
+        "ingresos": guardia.ingresados_total or 0,
+        "traslados": guardia.referidos or 0,
+        "defunciones": guardia.fallecidos or 0,
+        "eventualidades": guardia.eventualidades or ""
+    }
+    return jsonify(data), 200
+
 
 
 # ======================================================================

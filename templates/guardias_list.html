@@ -112,7 +112,7 @@
                  title="Exportar PDF">
                 <i class="bi bi-filetype-pdf"></i>
               </a>
-
+{% if current_user.is_admin or current_user.is_hospital_admin %}
               <form method="POST"
                     action="{{ url_for('guardias_eliminar', g_id=g.id) }}"
                     class="d-inline"
@@ -121,6 +121,7 @@
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -277,7 +278,7 @@
       const modalEl = document.getElementById("pendingModal");
       if (modalEl) {
         const m = new bootstrap.Modal(modalEl);
-        m.show();  // se abre automáticamente al cargar la página
+        m.hiden();  // se abre automáticamente al cargar la página
       }
     });
   </script>

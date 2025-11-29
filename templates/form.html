@@ -15,7 +15,11 @@
         <h4 class="mb-0 fw-semibold">Nuevo Registro</h4>
         <div class="page-subtitle">Formulario diario de emergencias</div>
       </div>
+
+           
+
     </div>
+     
   </div>
 
   <!-- FORMULARIO -->
@@ -28,6 +32,18 @@
       <div class="col-12 col-md-6">
         <label class="form-label">Fecha</label>
         <input type="date" name="fecha" class="form-control" required>
+      </div>
+      <!-- Botón para cargar datos desde guardia -->
+      <div class="col-12 mt-2">
+        <button type="button"
+                id="btn-cargar-guardia"
+                class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-download"></i>
+          Cargar datos desde guardia de ese día
+        </button>
+        <small class="text-muted d-block">
+          Completa automáticamente atenciones, ingresos, traslados y defunciones si existe una guardia registrada.
+        </small>
       </div>
 
       <!-- Hospital -->
@@ -116,5 +132,85 @@
   </form>
 
 </div>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const btn = document.getElementById('btn-cargar-guardia');
+      if (!btn) return;
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+
+        const fechaInput = document.querySelector('input[name="fecha"]');
+        if (!fechaInput || !fechaInput.value) {
+          alert('Primero seleccione la fecha.');
+          return;
+        }
+        const fecha = fechaInput.value;
+
+        let hospital = '';
+        {% if current_user.is_admin %}
+        const hospitalSelect = document.querySelector('select[name="hospital"]');
+        if (!hospitalSelect || !hospitalSelect.value) {
+          alert('Seleccione el hospital.');
+          return;
+        }
+        hospital = hospitalSelect.value;
+        {% endif %}
+
+        // Construimos URL del endpoint
+        let url = "{{ url_for('api_guardia_por_dia') }}?fecha=" + encodeURIComponent(fecha);
+        {% if current_user.is_admin %}
+        url += "&hospital=" + encodeURIComponent(hospital);
+        {% endif %}
+
+        btn.disabled = true;
+        btn.innerText = 'Buscando guardia...';
+
+        fetch(url)
+          .then(resp => resp.json())
+          .then(data => {
+            if (!data.ok) {
+              alert(data.error || 'Error consultando la guardia.');
+              return;
+            }
+
+            if (!data.found) {
+              alert(data.message || 'No hay guardia para esa fecha en este hospital.');
+              return;
+            }
+
+            // Rellenar campos del formulario
+            const atencionesInput = document.querySelector('input[name="atenciones"]');
+            const ingresosInput = document.querySelector('input[name="ingresos"]');
+            const trasladosInput = document.querySelector('input[name="traslados"]');
+            const defuncionesInput = document.querySelector('input[name="defunciones"]');
+            const eventualidadesText = document.querySelector('textarea[name="eventualidades"]');
+
+            if (atencionesInput) atencionesInput.value = data.atenciones ?? 0;
+            if (ingresosInput) ingresosInput.value = data.ingresos ?? 0;
+            if (trasladosInput) trasladosInput.value = data.traslados ?? 0;
+            if (defuncionesInput) defuncionesInput.value = data.defunciones ?? 0;
+
+            // Solo escribir eventualidades si está vacío (para no pisar algo ya escrito)
+            if (eventualidadesText && !eventualidadesText.value.trim() && data.eventualidades) {
+              eventualidadesText.value = data.eventualidades;
+            }
+
+          })
+          .catch(err => {
+            console.error(err);
+            alert('Error de comunicación con el servidor.');
+          })
+          .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-download"></i> Cargar datos desde guardia de ese día';
+          });
+      });
+    });
+  </script>
+
+
 
 {% endblock %}

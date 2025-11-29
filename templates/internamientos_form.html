@@ -275,6 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <div class="d-flex gap-2">
             {% if ir %}
+            {% if current_user.is_admin or current_user.is_hospital_admin %}
             <form action="{{ url_for('internamientos_eliminar', i_id=ir.id) }}"
                   method="POST"
                   onsubmit="return confirm('¿Seguro que deseas eliminar este internamiento? Esta acción no se puede deshacer.');">
@@ -282,6 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <i class="bi bi-trash"></i> Eliminar
               </button>
             </form>
+            {% endif %}
             {% endif %}
 
             <button type="submit" class="btn btn-primary">
