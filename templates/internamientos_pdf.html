@@ -185,6 +185,9 @@
       color: #b02a37;
       border-color: #f5c2c7;
     }
+    .muted {
+      color: #7f8c8d;
+    }
   </style>
 </head>
 
@@ -199,7 +202,12 @@
 
       <td style="width: 50%; text-align: center;">
         <div class="hospital-title">
-          {{ hosp.nombre if hosp else (current_user.hospital or 'Red Valdesia') }}
+          {# Título según modo #}
+          {% if multi_hospital %}
+            {{ hospital_nombre or 'Red Valdesia - Todos los hospitales' }}
+          {% else %}
+            {{ hosp.nombre if hosp else (hospital_nombre or current_user.hospital or 'Red Valdesia') }}
+          {% endif %}
         </div>
         <div class="hospital-subtitle">
           Reporte diario de internamientos
@@ -210,7 +218,7 @@
       </td>
 
       <td style="width: 25%; text-align: right;">
-        {% if hosp and hosp.logo_filename %}
+        {% if not multi_hospital and hosp and hosp.logo_filename %}
           <img src="{{ url_for('static', filename=hosp.logo_filename) }}"
                style="max-width:70px; max-height:70px;" class="logo">
         {% endif %}
@@ -236,74 +244,100 @@
   </div>
 
   <div class="field-row">
-    <span class="field-label">Total pacientes:</span>
-    <span class="field-value">{{ internamientos|length }}</span>
+    <span class="field-label">
+      Total pacientes:
+    </span>
+    <span class="field-value">
+      {{ internamientos|length }}
+    </span>
   </div>
 
   <!-- TABLA PRINCIPAL -->
   <div class="section-title">🏥 Pacientes hospitalizados</div>
 
-<table class="table-block">
-  <thead>
-    <tr>
-      <th style="width:110px;">Área</th>
-      <th style="width:210px;">Nombre del paciente</th>
-      <th style="width:45px;">Edad</th>
-      <th>Diagnósticos</th>
-      <th>Condición / Plan</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    {% if internamientos %}
-      {% for i in internamientos %}
+  <table class="table-block">
+    <thead>
       <tr>
+        <th style="width:110px;">Área</th>
+        <th style="width:210px;">Nombre del paciente</th>
+        <th style="width:45px;">Edad</th>
+        <th>Diagnósticos</th>
+        <th>Condición / Plan</th>
+      </tr>
+    </thead>
 
-        <!-- ÁREA: Área + Habitación/Cama -->
-        <td class="small">
-          <b>{{ i.area or '—' }}</b><br>
-          <span class="muted">Hab/Cama:</span> {{ i.habitacion or '—' }}
-        </td>
+    <tbody>
+      {% if internamientos %}
+        {# Para agrupar por hospital cuando es reporte multi-hospital #}
+        {% set ns = namespace(current_hosp=None) %}
 
-        <!-- NOMBRE PACIENTE: Nombre + Signos Vitales + Días ingreso -->
-        <td class="small">
-          <b>{{ i.nombre_paciente }}</b><br>
-          {% if i.signos_vitales %}
-            <span class="muted"><b>SV:</b></span> {{ i.signos_vitales }}<br>
+        {% for i in internamientos %}
+
+          {# Encabezado de hospital: solo cuando cambia y estamos en multi_hospital #}
+          {% if multi_hospital and ns.current_hosp != i.hospital %}
+            {% set ns.current_hosp = i.hospital %}
+            <tr>
+              <td colspan="5"
+                  style="background-color:#e8f4f9;
+                         font-weight:bold;
+                         font-size:9.5pt;
+                         padding-top:6px;
+                         padding-bottom:4px;">
+                Hospital {{ ns.current_hosp }}
+                {% if totales_por_hospital and totales_por_hospital[ns.current_hosp] is not none %}
+                  <span style="font-weight:normal; font-size:9pt;">
+                    — Total pacientes: {{ totales_por_hospital[ns.current_hosp] }}
+                  </span>
+                {% endif %}
+              </td>
+            </tr>
           {% endif %}
-          <span class="muted"><b>Días de ingres:</b></span>
-          {{ i.dias_hospitalizado if i.dias_hospitalizado is not none else (i.dia_ingreso or 0) }}
-        </td>
 
-        <!-- EDAD -->
-        <td class="text-center nowrap">
-          {{ i.edad if i.edad is not none else '—' }}
-        </td>
+          <tr>
+            <!-- ÁREA: Área + Habitación/Cama -->
+            <td class="small">
+              <b>{{ i.area or '—' }}</b><br>
+              <span class="muted">Hab/Cama:</span> {{ i.habitacion or '—' }}
+            </td>
 
-        <!-- DIAGNÓSTICOS -->
-        <td class="small">
-          {{ i.diagnosticos or '—' }}
-        </td>
+            <!-- NOMBRE PACIENTE: Nombre + Signos Vitales + Días ingreso -->
+            <td class="small">
+              <b>{{ i.nombre_paciente }}</b><br>
+              {% if i.signos_vitales %}
+                <span class="muted"><b>SV:</b></span> {{ i.signos_vitales }}<br>
+              {% endif %}
+              <span class="muted"><b>Días de ingreso:</b></span>
+              {{ i.dias_hospitalizado if i.dias_hospitalizado is not none else '—' }}
+            </td>
 
-        <!-- CONDICIÓN / PLAN -->
-        <td class="small">
-          {{ i.condicion_plan or '—' }}
-        </td>
+            <!-- EDAD -->
+            <td class="text-center nowrap">
+              {{ i.edad if i.edad is not none else '—' }}
+            </td>
 
-      </tr>
-      {% endfor %}
-    {% else %}
-      <tr>
-        <td colspan="5" class="text-center small">
-          No hay pacientes internados para este reporte.
-        </td>
-      </tr>
-    {% endif %}
-  </tbody>
-</table>
+            <!-- DIAGNÓSTICOS -->
+            <td class="small">
+              {{ i.diagnosticos or '—' }}
+            </td>
 
+            <!-- CONDICIÓN / PLAN -->
+            <td class="small">
+              {{ i.condicion_plan or '—' }}
+            </td>
 
-  <!-- SECCIÓN OBSERVACIONES GENERALES (si quieres poner algo global del censo) -->
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5" class="text-center small">
+            No hay pacientes internados para este reporte.
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- SECCIÓN OBSERVACIONES GENERALES -->
   <div class="section-title">📝 Observaciones generales</div>
   <div class="multiline-box">
     {{ observaciones_generales or "No se registraron observaciones generales." }}
@@ -316,7 +350,7 @@
   </div>
 
   <div class="footer">
-    Generado por el Sistema de Gestión Hospitalaria - Impreso: {{ generated_at.strftime('%d/%m/%Y %H:%M') }}
+    Impreso: {{ generated_at.strftime('%d/%m/%Y %H:%M') }}
   </div>
 
 </body>

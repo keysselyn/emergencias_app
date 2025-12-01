@@ -7,9 +7,29 @@ from flask import (
 from flask_login import (
     LoginManager, login_user, logout_user, current_user, login_required
 )
+
 from datetime import datetime, date, timedelta
-anio_actual = datetime.now().year
-mes_actual = datetime.now().month
+import zoneinfo
+
+# ==============================
+# ZONA HORARIA (SANTO DOMINGO)
+# ==============================
+LOCAL_TZ = zoneinfo.ZoneInfo("America/Santo_Domingo")
+
+
+def now_local() -> datetime:
+    """Fecha y hora actual en Santo Domingo."""
+    return datetime.now(LOCAL_TZ)
+
+
+def today_local() -> date:
+    """Fecha actual (date) en Santo Domingo."""
+    return now_local().date()
+
+
+anio_actual = now_local().year
+mes_actual = now_local().month
+
 # Para generar la gráfica en imagen
 import matplotlib
 matplotlib.use("Agg")  # importante: backend sin interfaz gráfica
@@ -262,7 +282,7 @@ def healthz():
 # ==============================
 @app.route('/')
 def index():
-    hoy = datetime.now().strftime("%Y-%m-%d")
+    hoy = now_local().strftime("%Y-%m-%d")
 
     # Valores por defecto para cuando no haya login
     kpi_guardias_hoy = 0
@@ -271,7 +291,7 @@ def index():
 
     if current_user.is_authenticated:
         # Fecha "hoy" a nivel de fecha (sin hora)
-        hoy_date = date.today()
+        hoy_date = today_local()
 
         # Alcance por hospital según rol
         scope_hosp = user_hospital_scope()
@@ -313,7 +333,6 @@ def index():
         kpi_internamientos_activos=kpi_internamientos_activos,
         kpi_internamientos_egresados_hoy=kpi_internamientos_egresados_hoy
     )
-
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -380,8 +399,6 @@ def perfil():
     return render_template('perfil.html', u=u)
 
 
-
-
 # ======================================================================
 #   REGISTRO DIARIO DE EMERGENCIAS
 # ======================================================================
@@ -391,7 +408,7 @@ def nuevo():
     if request.method == "POST":
         try:
             fecha_str = request.form.get("fecha")
-            fecha = parser.parse(fecha_str).date() if fecha_str else datetime.today().date()
+            fecha = parser.parse(fecha_str).date() if fecha_str else today_local()
 
             if current_user.is_admin:
                 hospital_nombre = (request.form.get("hospital") or "").strip()
@@ -791,7 +808,7 @@ def exportar_excel():
     summary["A1"].font = Font(size=14, bold=True)
 
     summary["A3"] = "Generado:"
-    summary["B3"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    summary["B3"] = now_local().strftime("%Y-%m-%d %H:%M")
     summary["A4"] = "Hospital:"
     summary["B4"] = (
         f_hospital if (current_user.is_admin and f_hospital)
@@ -870,8 +887,8 @@ def render_pdf_from_html(html: str, pdf_filename: str = "reporte.pdf"):
 #   DASHBOARD (Guardias + Internamientos)
 # ======================================================================
 import json
-from datetime import datetime, date
-from dateutil import parser
+from datetime import datetime as _dt_alias, date as _date_alias  # para no chocar con helpers
+from dateutil import parser as _parser_alias
 
 @app.route('/dashboard')
 @login_required
@@ -883,14 +900,14 @@ def dashboard():
     # ---------- Helper fechas ----------
     def parse_date(s):
         try:
-            return parser.parse(s).date() if s else None
+            return _parser_alias.parse(s).date() if s else None
         except Exception:
             return None
 
     d_desde = parse_date(f_desde)
     d_hasta = parse_date(f_hasta)
 
-    hoy = date.today()
+    hoy = today_local()
     # Si no hay fechas, usar mes actual
     if not d_desde and not d_hasta:
         d_desde = hoy.replace(day=1)
@@ -907,16 +924,11 @@ def dashboard():
 
     # ---------- Alcance por rol ----------
     scope_hosp = user_hospital_scope()
-    # scope_hosp:
-    #   - None → admin general (puede ver todos / filtrar)
-    #   - "Hospital X" → admin hospital o usuario normal
 
     if scope_hosp:
-        # Admin de hospital o usuario normal: fijo su hospital
         sel_hospital = scope_hosp
         f_hospital = scope_hosp
     else:
-        # Admin general
         sel_hospital = f_hospital or "Todos"
 
     # ============================================================
@@ -972,7 +984,6 @@ def dashboard():
 
     # ============================================================
     #   3) REGISTRO DIARIO DE EMERGENCIAS (EmergencyRecord)
-    #       → Solo para admin general / admin de hospital
     # ============================================================
     kpi_atenciones = 0
     kpi_ingresos = 0
@@ -985,9 +996,8 @@ def dashboard():
     chart_defunciones = []
     ranking = []
 
-    # nuevos: distribución de traslados por hospital de referencia
-    referral_counts = {}   # { "Hospital Regional Juan Pablo Pina": 23, ... }
-    motivo_counts = {}     # opcional: { "NEUROLOGÍA": 10, "TRAUMA": 5, ... }
+    referral_counts = {}
+    motivo_counts = {}
 
     if current_user.is_admin or current_user.is_hospital_admin:
         qe = EmergencyRecord.query
@@ -1016,12 +1026,10 @@ def dashboard():
             kpi_traslados += tr
             kpi_defunciones += de
 
-            # series por fecha
             key = r.fecha.isoformat()
             if key not in labels:
                 labels.append(key)
 
-        # Series agregadas por fecha
         series = {}
         for r in registros:
             key = r.fecha.isoformat()
@@ -1037,7 +1045,6 @@ def dashboard():
             series[key]["traslados"] += r.traslados or 0
             series[key]["defunciones"] += r.defunciones or 0
 
-            # distribución de traslados por hospital de referencia
             if (r.traslados or 0) > 0:
                 hosp_ref = (r.hospital_referencia or "").strip()
                 if hosp_ref:
@@ -1053,7 +1060,6 @@ def dashboard():
         chart_traslados = [series[d]["traslados"] for d in labels]
         chart_defunciones = [series[d]["defunciones"] for d in labels]
 
-        # Ranking de hospitales por atenciones (solo admin general sin filtro)
         if current_user.is_admin and not f_hospital:
             totales = {}
             for r in registros:
@@ -1065,7 +1071,6 @@ def dashboard():
                 reverse=True
             )[:5]
 
-    # top hospitales de referencia (traslados)
     top_referrals = sorted(
         ({"hospital": h, "traslados": referral_counts[h]} for h in referral_counts),
         key=lambda x: x["traslados"],
@@ -1075,7 +1080,6 @@ def dashboard():
     referral_labels = [x["hospital"] for x in top_referrals]
     referral_values = [x["traslados"] for x in top_referrals]
 
-    # opcional: top motivos de traslado (por si luego los quieres usar)
     top_motivos = sorted(
         ({"motivo": m, "traslados": motivo_counts[m]} for m in motivo_counts),
         key=lambda x: x["traslados"],
@@ -1087,12 +1091,10 @@ def dashboard():
 
     return render_template(
         'dashboard.html',
-        # filtros
         sel_hospital=sel_hospital,
         f_hospital=f_hospital,
         f_desde=d_desde.isoformat() if d_desde else "",
         f_hasta=d_hasta.isoformat() if d_hasta else "",
-        # KPIs guardias
         guardia_total_pacientes=guardia_total_pacientes,
         guardia_adultos=guardia_adultos,
         guardia_pediatricos=guardia_pediatricos,
@@ -1100,10 +1102,8 @@ def dashboard():
         guardia_fallecidos=guardia_fallecidos,
         guardia_referidos=guardia_referidos,
         guardia_ingresados_total=guardia_ingresados_total,
-        # KPIs internamientos
         kpi_internamientos_activos=kpi_internamientos_activos,
         kpi_internamientos_egresados=kpi_internamientos_egresados,
-        # Datos de registro diario
         kpi_atenciones=kpi_atenciones,
         kpi_ingresos=kpi_ingresos,
         kpi_traslados=kpi_traslados,
@@ -1114,90 +1114,25 @@ def dashboard():
         data_traslados=json.dumps(chart_traslados),
         data_defunciones=json.dumps(chart_defunciones),
         ranking=ranking,
-        # distribución de traslados por hospital de referencia
         referral_labels=json.dumps(referral_labels),
         referral_values=json.dumps(referral_values),
-        # motivos de traslado (por si los usas más adelante)
         motivo_labels=json.dumps(motivo_labels),
         motivo_values=json.dumps(motivo_values),
         anio_actual=anio_actual,
         mes_actual=mes_actual
-
     )
 
-from sqlalchemy import func
-from datetime import date, timedelta, datetime # Asegúrate de que datetime está importado
-from dateutil import parser
-import uuid
-import matplotlib.pyplot as plt
-import os
-import logging # Asegúrate de importar logging
 
-# Configurar un logger (opcional, pero recomendado)
+from sqlalchemy import func
+from datetime import date as _date2, timedelta as _td2, datetime as _dt2
+from dateutil import parser as _parser2
+import uuid as _uuid2
+import matplotlib.pyplot as _plt2
+import os as _os2
+import logging
+
 logger = logging.getLogger(__name__)
 
-# NOTA: Asegúrate de que app, db, request, login_required, admin_required,
-# render_template, render_pdf_from_html y EmergencyRecord (de models)
-# están disponibles en tu entorno.
-
-def generar_grafica_dona_resumen(resumen_rows):
-    """
-    Genera la gráfica de dona dentro de static/img/ y devuelve la ruta /static/img/archivo.png
-    """
-    if not resumen_rows:
-        return None
-
-    tmp_dir = os.path.join(app.static_folder, "img")  # <--- aquí cambiamos
-    os.makedirs(tmp_dir, exist_ok=True)
-
-    labels = [row["hospital"] for row in resumen_rows]
-    valores = [row["atenciones"] for row in resumen_rows]
-
-    if all(v == 0 for v in valores):
-        return None
-
-    fig, ax = plt.subplots(figsize=(9, 5))
-
-    wedges, texts, autotexts = ax.pie(
-        valores,
-        labels=labels,
-        autopct='%1.1f%%',
-        startangle=90,
-        pctdistance=0.8,
-        labeldistance=1.1,
-        wedgeprops=dict(width=0.35)
-    )
-
-    ax.set(aspect="equal")
-    ax.set_title("ATENCIONES POR HOSPITAL", fontsize=12)
-
-    for t in autotexts:
-        t.set_fontsize(8)
-    for t in texts:
-        t.set_fontsize(8)
-
-    filename = f"resumen_dona_{uuid.uuid4().hex}.png"
-    filepath = os.path.join(tmp_dir, filename)
-    fig.savefig(filepath, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-
-    # Esta ruta es la que xhtml2pdf usará para mostrar la imagen
-    return f"/static/img/{filename}"
-
-# IMPORTS necesarios (si ya los tienes arriba, no los dupliques)
-from sqlalchemy import func
-from datetime import date, datetime, timedelta
-from dateutil import parser
-import os
-import uuid
-import matplotlib
-matplotlib.use("Agg")  # backend sin interfaz gráfica (para servidor)
-import matplotlib.pyplot as plt
-
-# ============================================================
-#   PDF EMERGENCIAS RECORD (EmergencyRecord)
-#       → Solo para admin general / admin de hospital
-# ============================================================
 
 def generar_grafica_dona_resumen(resumen_rows):
     """
@@ -1207,20 +1142,17 @@ def generar_grafica_dona_resumen(resumen_rows):
     if not resumen_rows:
         return None
 
-    # Guardar en static/img/ (que es la carpeta que usas en Render)
     tmp_dir = os.path.join(app.static_folder, "img")
     os.makedirs(tmp_dir, exist_ok=True)
 
     labels = [row["hospital"] for row in resumen_rows]
     valores = [row["atenciones"] for row in resumen_rows]
 
-    # Si todos son 0, no vale la pena dibujar
     if all(v == 0 for v in valores):
         return None
 
     fig, ax = plt.subplots(figsize=(9, 5))
 
-    # dona con etiquetas y porcentajes
     wedges, texts, autotexts = ax.pie(
         valores,
         labels=labels,
@@ -1245,23 +1177,16 @@ def generar_grafica_dona_resumen(resumen_rows):
     fig.savefig(filepath, dpi=130, bbox_inches="tight")
     plt.close(fig)
 
-    # ruta accesible por el navegador / xhtml2pdf
     return f"/static/img/{filename}"
 
 
 @app.route("/emergencias/resumen_pdf")
 @login_required
-@admin_required  # o tu decorador equivalente para admin general / admin hospital
+@admin_required
 def emergencias_resumen_pdf():
     """
     Resumen por hospital (tabla + dona) en PDF.
-
-    Prioridad de filtros:
-      1) ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
-      2) ?anio=YYYY&mes=1-12 (mensual)
-      3) Mes actual si no se envía nada
     """
-    # ---------- 1. Intentar usar desde/hasta del filtro ----------
     desde = None
     hasta = None
 
@@ -1280,25 +1205,23 @@ def emergencias_resumen_pdf():
         except Exception:
             hasta = None
 
-    # Si solo viene uno, completamos el otro
     if desde and not hasta:
-        hasta = date.today()
+        hasta = today_local()
     if hasta and not desde:
         desde = hasta.replace(day=1)
 
-    # ---------- 2. Si no hay desde/hasta → usar anio/mes o mes actual ----------
     if not desde or not hasta:
         try:
-            anio = int(request.args.get("anio", datetime.now().year))
+            anio = int(request.args.get("anio", now_local().year))
         except ValueError:
-            anio = datetime.now().year
+            anio = now_local().year
 
         try:
-            mes = int(request.args.get("mes", datetime.now().month))
+            mes = int(request.args.get("mes", now_local().month))
             if not (1 <= mes <= 12):
-                mes = datetime.now().month
+                mes = now_local().month
         except ValueError:
-            mes = datetime.now().month
+            mes = now_local().month
 
         desde = date(anio, mes, 1)
         if mes == 12:
@@ -1306,13 +1229,11 @@ def emergencias_resumen_pdf():
         else:
             hasta = date(anio, mes + 1, 1) - timedelta(days=1)
 
-    # ---------- 3. Etiqueta del rango para el encabezado ----------
     meses_es = [
         "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
         "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
     ]
 
-    # Si parece un mes completo → "NOVIEMBRE 2025"
     if (
         desde.day == 1
         and desde.month == hasta.month
@@ -1321,10 +1242,8 @@ def emergencias_resumen_pdf():
     ):
         mes_label = f"{meses_es[desde.month - 1]} {desde.year}"
     else:
-        # Rango literal
         mes_label = f"Del {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
 
-    # ---------- 4. Query agrupada por hospital ----------
     from models import EmergencyRecord
 
     base_q = db.session.query(
@@ -1353,7 +1272,6 @@ def emergencias_resumen_pdf():
 
     resultados = base_q.all()
 
-    # ---------- 5. Construir resumen + totales ----------
     resumen = []
     totales = {
         "atenciones": 0,
@@ -1380,7 +1298,6 @@ def emergencias_resumen_pdf():
             totales[k] += data[k]
         totales["eventualidades_count"] += data["eventualidades_count"]
 
-    # ---------- 6. Gráfica de dona + render PDF ----------
     chart_url = generar_grafica_dona_resumen(resumen)
 
     html = render_template(
@@ -1391,15 +1308,13 @@ def emergencias_resumen_pdf():
         resumen=resumen,
         totales=totales,
         chart_url=chart_url,
-        generated_at=datetime.now(),
+        generated_at=now_local(),
     )
 
     filename = f"resumen_emergencias_{desde.strftime('%Y%m%d')}_{hasta.strftime('%Y%m%d')}.pdf"
     response = render_pdf_from_html(html, pdf_filename=filename)
 
-    # ---------- 7. Eliminar imagen temporal ----------
     if chart_url:
-        # chart_url: /static/img/xxx.png  → FS:  /app/static/img/xxx.png
         fs_path = chart_url.replace("/static", app.static_folder)
         try:
             if os.path.exists(fs_path):
@@ -1409,10 +1324,6 @@ def emergencias_resumen_pdf():
             app.logger.warning(f"No se pudo eliminar imagen temporal {fs_path}: {e}")
 
     return response
-
-
-# =========================================================================
-
 
 
 # ======================================================================
@@ -1518,7 +1429,7 @@ def hospitales_eliminar(h_id):
 
 
 # ======================================================================
-#   GESTIÓN DE USUARIOS (ADMIN GENERAL + ADMIN HOSPITAL)
+#   GESTIÓN DE USUARIOS
 # ======================================================================
 @app.route("/usuarios")
 @login_required
@@ -1723,7 +1634,7 @@ def guardias_list():
     d_desde = parse_date(f_desde) if f_desde else None
     d_hasta = parse_date(f_hasta) if f_hasta else None
 
-    hoy = date.today()
+    hoy = today_local()
     if not d_desde and not d_hasta:
         d_desde = hoy.replace(day=1)
         d_hasta = hoy
@@ -1799,7 +1710,7 @@ def guardias_nuevo():
     if request.method == "POST":
         try:
             fecha_str = request.form.get("fecha")
-            fecha = parser.parse(fecha_str).date() if fecha_str else datetime.today().date()
+            fecha = parser.parse(fecha_str).date() if fecha_str else today_local()
 
             hospital_nombre = (
                 (request.form.get("hospital") or "").strip()
@@ -1852,7 +1763,7 @@ def guardias_nuevo():
         except Exception as e:
             flash(f"Error guardando guardia: {e}", "danger")
 
-    hoy = datetime.now().strftime("%Y-%m-%d")
+    hoy = now_local().strftime("%Y-%m-%d")
     return render_template("guardias_form.html", hoy=hoy, g=None)
 
 
@@ -1920,7 +1831,7 @@ def guardias_editar(g_id):
         except Exception as e:
             flash(f"Error actualizando guardia: {e}", "danger")
 
-    hoy = datetime.now().strftime("%Y-%m-%d")
+    hoy = now_local().strftime("%Y-%m-%d")
     return render_template("guardias_edit.html", hoy=hoy, g=g)
 
 
@@ -1957,7 +1868,7 @@ def guardias_pdf(g_id):
         "guardia_pdf.html",
         g=g,
         hosp=hosp,
-        generated_at=datetime.now()
+        generated_at=now_local()
     )
     filename = f"guardia_{g.hospital.replace(' ', '_')}_{g.fecha.isoformat()}.pdf"
     return render_pdf_from_html(html, pdf_filename=filename)
@@ -1966,12 +1877,9 @@ def guardias_pdf(g_id):
 # ======================================================================
 #   Trar Datos de la Guardia a Reporte Diario
 # ======================================================================
-
 @app.route("/api/guardia_por_dia", methods=["GET"])
 @login_required
 def api_guardia_por_dia():
-    from models import GuardiaEmergencia  # ya está importado arriba, pero por si acaso
-
     fecha_str = request.args.get("fecha", "").strip()
     if not fecha_str:
         return jsonify({"ok": False, "error": "Falta la fecha."}), 400
@@ -1981,7 +1889,6 @@ def api_guardia_por_dia():
     except Exception:
         return jsonify({"ok": False, "error": "Fecha inválida."}), 400
 
-    # Hospital según rol
     if current_user.is_admin:
         hospital = (request.args.get("hospital") or "").strip()
         if not hospital:
@@ -2004,7 +1911,6 @@ def api_guardia_por_dia():
             "message": "No hay guardia registrada para esa fecha en este hospital."
         }), 200
 
-    # Mapeo de campos: ajusta si quieres otra lógica
     total_pacientes = (
         (guardia.total_matutino or 0) +
         (guardia.total_vespertino or 0) +
@@ -2023,7 +1929,6 @@ def api_guardia_por_dia():
     return jsonify(data), 200
 
 
-
 # ======================================================================
 #   INTERNAMIENTOS
 # ======================================================================
@@ -2038,9 +1943,11 @@ def internamientos_list():
 
     q = Internamiento.query.options(joinedload(Internamiento.created_by))
 
+    # Filtrar por egresados o no
     if not mostrar_egresados:
         q = q.filter(Internamiento.egresado == False)
 
+    # Alcance por hospital
     scope_hosp = user_hospital_scope()
     if scope_hosp:
         q = q.filter(Internamiento.hospital == scope_hosp)
@@ -2048,6 +1955,7 @@ def internamientos_list():
         if f_hospital:
             q = q.filter(Internamiento.hospital == f_hospital)
 
+    # ---------------- Filtro de fechas (solo si se usa) ----------------
     def parse_date(s):
         try:
             return parser.parse(s).date()
@@ -2057,34 +1965,53 @@ def internamientos_list():
     d_desde = parse_date(f_desde) if f_desde else None
     d_hasta = parse_date(f_hasta) if f_hasta else None
 
-    hoy = date.today()
-    if not d_desde and not d_hasta:
-        d_desde = hoy.replace(day=1)
-        d_hasta = hoy
-    else:
+    hoy = today_local()
+    aplicar_filtro_fecha = bool(d_desde or d_hasta)
+
+    if aplicar_filtro_fecha:
         if d_desde and not d_hasta:
             d_hasta = hoy
         if d_hasta and not d_desde:
             d_desde = d_hasta.replace(day=1)
 
-    if d_desde and d_hasta and d_desde > d_hasta:
-        d_desde, d_hasta = d_hasta, d_desde
+        if d_desde and d_hasta and d_desde > d_hasta:
+            d_desde, d_hasta = d_hasta, d_desde
 
-    if d_desde:
-        q = q.filter(Internamiento.fecha >= d_desde)
-    if d_hasta:
-        q = q.filter(Internamiento.fecha <= d_hasta)
+        if d_desde:
+            q = q.filter(Internamiento.fecha >= d_desde)
+        if d_hasta:
+            q = q.filter(Internamiento.fecha <= d_hasta)
 
-    internamientos = q.order_by(Internamiento.fecha.desc(), Internamiento.id.desc()).all()
+    # ---------------- ORDENADO FINAL ----------------
+    if current_user.is_admin and not scope_hosp and not f_hospital:
+        # Admin general viendo toda la red → agrupar por hospital
+        internamientos = q.order_by(
+            Internamiento.hospital.asc(),
+            Internamiento.area.asc(),
+            Internamiento.habitacion.asc(),
+            Internamiento.nombre_paciente.asc()
+        ).all()
+    else:
+        internamientos = q.order_by(
+            Internamiento.fecha.desc(),
+            Internamiento.id.desc()
+        ).all()
+
+    # --------- Totales por hospital (número de pacientes) ---------
+    totales_por_hospital = {}
+    for i in internamientos:
+        totales_por_hospital[i.hospital] = totales_por_hospital.get(i.hospital, 0) + 1
 
     return render_template(
         "internamientos_list.html",
         internamientos=internamientos,
-        rango_inicio=d_desde.strftime("%Y-%m-%d") if d_desde else "",
-        rango_fin=d_hasta.strftime("%Y-%m-%d") if d_hasta else "",
+        rango_inicio=d_desde.strftime("%Y-%m-%d") if aplicar_filtro_fecha and d_desde else "",
+        rango_fin=d_hasta.strftime("%Y-%m-%d") if aplicar_filtro_fecha and d_hasta else "",
         f_hospital=f_hospital,
-        mostrar_egresados=mostrar_egresados
+        mostrar_egresados=mostrar_egresados,
+        totales_por_hospital=totales_por_hospital,  # 👈 NUEVO
     )
+
 
 
 @app.route("/internamientos/nuevo", methods=["GET", "POST"])
@@ -2093,7 +2020,7 @@ def internamientos_nuevo():
     if request.method == "POST":
         try:
             fecha_str = request.form.get("fecha")
-            fecha = parser.parse(fecha_str).date() if fecha_str else datetime.today().date()
+            fecha = parser.parse(fecha_str).date() if fecha_str else today_local()
 
             if current_user.is_admin or current_user.is_hospital_admin:
                 hospital_nombre = (request.form.get("hospital") or current_user.hospital or "").strip()
@@ -2146,7 +2073,7 @@ def internamientos_nuevo():
         except Exception as e:
             flash(f"Error guardando internamiento: {e}", "danger")
 
-    hoy = datetime.now().strftime("%Y-%m-%d")
+    hoy = now_local().strftime("%Y-%m-%d")
     return render_template("internamientos_form.html", hoy=hoy, ir=None)
 
 
@@ -2204,7 +2131,7 @@ def internamientos_editar(i_id):
         except Exception as e:
             flash(f"Error actualizando internamiento: {e}", "danger")
 
-    hoy = datetime.now().strftime("%Y-%m-%d")
+    hoy = now_local().strftime("%Y-%m-%d")
     return render_template("internamientos_form.html", hoy=hoy, ir=ir)
 
 
@@ -2227,81 +2154,186 @@ def internamientos_eliminar(i_id):
 @app.route("/internamientos/pdf")
 @login_required
 def internamientos_pdf():
+    # --------- Helper para resolver hospital según rol/filtro ----------
+    scope_hosp = user_hospital_scope()  # None para admin general
+    hospital_param = (request.args.get("hospital") or "").strip()
+
+    # scope_hosp:
+    #   - None  → admin general
+    #   - "Hospital X" → admin hospital / usuario normal
+    if scope_hosp:
+        hospital_nombre = scope_hosp
+        multi_hospital = False
+    else:
+        # Admin general: usa el hospital del filtro si viene, si no → todos
+        hospital_nombre = hospital_param or None
+        multi_hospital = hospital_nombre is None
 
     # 1) SOLO VALIDACIÓN
     if request.args.get("validar") == "1":
         fecha_str = request.args.get("fecha")
         try:
-            fecha_reporte = parser.parse(fecha_str).date() if fecha_str else date.today()
+            fecha_reporte = parser.parse(fecha_str).date() if fecha_str else today_local()
         except Exception:
-            fecha_reporte = date.today()
+            fecha_reporte = today_local()
 
-        scope_hosp = user_hospital_scope()
-        hospital_nombre = scope_hosp or (request.args.get("hospital") or current_user.hospital).strip()
-
-        activos = Internamiento.query.filter(
-            Internamiento.hospital == hospital_nombre,
+        # Internamientos activos hasta la fecha del reporte
+        q_val = Internamiento.query.filter(
             Internamiento.egresado == False,
             Internamiento.fecha <= fecha_reporte
-        ).all()
+        )
+
+        # Si hay hospital fijo (usuario normal o admin con filtro) se filtra
+        if hospital_nombre:
+            q_val = q_val.filter(Internamiento.hospital == hospital_nombre)
+
+        activos = q_val.all()
 
         faltantes = []
         for i in activos:
-            if not i.fecha_actualizacion or i.fecha_actualizacion.date() != fecha_reporte:
-                faltantes.append({
+            ultima_actualizacion = i.fecha_actualizacion.date() if i.fecha_actualizacion else None
+            if not ultima_actualizacion or ultima_actualizacion != fecha_reporte:
+                item = {
                     "id": i.id,
                     "nombre": i.nombre_paciente,
                     "area": i.area or "",
-                    "habitacion": i.habitacion or ""
-                })
+                    "habitacion": i.habitacion or "",
+                    "ultima_actualizacion": (
+                        ultima_actualizacion.isoformat() if ultima_actualizacion else None
+                    )
+                }
+                # Para admins, puede ser útil saber el hospital si es multi
+                if multi_hospital:
+                    item["hospital"] = i.hospital
+                faltantes.append(item)
 
-        return jsonify({"ok": len(faltantes) == 0, "faltantes": faltantes})
+        # Para admin general y admin de hospital NO se bloquea
+        if current_user.is_admin or current_user.is_hospital_admin:
+            ok = True
+        else:
+            ok = len(faltantes) == 0
+
+        return jsonify({"ok": ok, "faltantes": faltantes})
 
     # 2) GENERAR PDF
     if request.args.get("generar") == "1":
         fecha_str = request.args.get("fecha")
         try:
-            fecha_reporte = parser.parse(fecha_str).date() if fecha_str else date.today()
+            fecha_reporte = parser.parse(fecha_str).date() if fecha_str else today_local()
         except Exception:
-            fecha_reporte = date.today()
+            fecha_reporte = today_local()
 
         mostrar_egresados = request.args.get("egresados") == "1"
 
         q = Internamiento.query.options(joinedload(Internamiento.created_by))
 
-        scope_hosp = user_hospital_scope()
-        hospital_nombre = scope_hosp or (request.args.get("hospital") or current_user.hospital).strip()
-
-        q = q.filter(Internamiento.hospital == hospital_nombre)
+        # Filtro por hospital (solo si hay uno definido).
+        # Si multi_hospital=True (admin general sin filtro), NO se filtra.
+        if hospital_nombre:
+            q = q.filter(Internamiento.hospital == hospital_nombre)
 
         if not mostrar_egresados:
             q = q.filter(Internamiento.egresado == False)
 
         q = q.filter(Internamiento.fecha <= fecha_reporte)
 
-        internamientos = q.order_by(
-            Internamiento.area.asc(),
-            Internamiento.habitacion.asc(),
-            Internamiento.nombre_paciente.asc()
-        ).all()
+        # Orden:
+        #   - multi_hospital → agrupar por hospital
+        #   - un solo hospital → solo por área/habitación/nombre
+        if multi_hospital:
+            internamientos = q.order_by(
+                Internamiento.hospital.asc(),
+                Internamiento.area.asc(),
+                Internamiento.habitacion.asc(),
+                Internamiento.nombre_paciente.asc()
+            ).all()
+        else:
+            internamientos = q.order_by(
+                Internamiento.area.asc(),
+                Internamiento.habitacion.asc(),
+                Internamiento.nombre_paciente.asc()
+            ).all()
 
-        hosp = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
+        # ================== TOTALES POR HOSPITAL ==================
+        totales_por_hospital = {}
+        for i in internamientos:
+            totales_por_hospital[i.hospital] = totales_por_hospital.get(i.hospital, 0) + 1
+        # ==========================================================
+
+        # ================== NOTA AUTOMÁTICA DE NO ACTUALIZADOS ==================
+        q_val = Internamiento.query.filter(
+            Internamiento.egresado == False,
+            Internamiento.fecha <= fecha_reporte
+        )
+        if hospital_nombre:
+            q_val = q_val.filter(Internamiento.hospital == hospital_nombre)
+
+        activos = q_val.all()
+
+        notas_auto = []
+        for i in activos:
+            ultima_actualizacion = i.fecha_actualizacion.date() if i.fecha_actualizacion else None
+            if not ultima_actualizacion or ultima_actualizacion != fecha_reporte:
+                if ultima_actualizacion:
+                    fecha_txt = ultima_actualizacion.strftime("%d/%m/%Y")
+                else:
+                    fecha_txt = "Sin registro de actualización"
+
+                # Un paciente por línea
+                if multi_hospital:
+                    # Incluimos hospital cuando el reporte es de toda la red
+                    notas_auto.append(
+                        f"- {i.nombre_paciente} | {i.hospital} | "
+                        f"Área: {i.area or ''}, Hab.: {i.habitacion or ''} "
+                        f"– Última actualización: {fecha_txt}"
+                    )
+                else:
+                    notas_auto.append(
+                        f"- {i.nombre_paciente} "
+                        f"(Área: {i.area or ''}, Hab.: {i.habitacion or ''}) "
+                        f"– Última actualización: {fecha_txt}"
+                    )
+
         observaciones_generales = (request.args.get("observaciones_generales") or "").strip()
+
+        if notas_auto:
+            bloque = (
+                "Pacientes con internamiento activo sin actualización "
+                f"en la fecha del reporte ({fecha_reporte.strftime('%d/%m/%Y')}):\n"
+                + "\n".join(notas_auto)
+            )
+            if observaciones_generales:
+                observaciones_generales = observaciones_generales.rstrip() + "\n\n\n" + bloque
+            else:
+                observaciones_generales = bloque
+        # =======================================================================
+
+        # Si hay hospital específico, buscamos su registro; si no, reporte general
+        hosp = None
+        if hospital_nombre and not multi_hospital:
+            hosp = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
 
         html = render_template(
             "internamientos_pdf.html",
             internamientos=internamientos,
             hosp=hosp,
+            hospital_nombre=hospital_nombre,
+            multi_hospital=multi_hospital,
+            totales_por_hospital=totales_por_hospital,
             fecha_reporte=fecha_reporte,
-            generated_at=datetime.now(),
+            generated_at=now_local(),
             mostrar_egresados=mostrar_egresados,
             observaciones_generales=observaciones_generales
         )
 
-        filename = f"internamientos_{hospital_nombre.replace(' ', '_')}_{fecha_reporte.isoformat()}.pdf"
+        safe_name = (hospital_nombre or "Todos_los_hospitales").replace(" ", "_")
+        filename = f"internamientos_{safe_name}_{fecha_reporte.isoformat()}.pdf"
         return render_pdf_from_html(html, pdf_filename=filename)
 
     return jsonify({"error": "Modo inválido"}), 400
+
+
+
 
 
 # ======================================================================

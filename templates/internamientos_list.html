@@ -94,9 +94,22 @@
 {# ───────── LISTA MÓVIL COMPACTA ───────── #}
 <div class="d-block d-md-none">
   {% if internamientos %}
+    {% set ns = namespace(current_hosp=None) %}
     {% for i in internamientos %}
-      <div class="card mb-2 p-3 bg-white rounded-3 shadow-sm">
 
+      {# Solo Admin general sin filtro de hospital: encabezado por hospital #}
+      {% if current_user.is_admin and not request.args.get('hospital') and ns.current_hosp != i.hospital %}
+        {% set ns.current_hosp = i.hospital %}
+        <h6 class="mt-3 mb-2 text-primary fw-bold">
+          <i class="bi bi-hospital"></i>
+          Hospital {{ ns.current_hosp }}
+          <span class="text-muted fw-normal">
+            — Total ingresos: {{ totales_por_hospital[ns.current_hosp] }}
+          </span>
+        </h6>
+      {% endif %}
+
+      <div class="card mb-2 p-3 bg-white rounded-3 shadow-sm">
         {# HEADER: ÁREA + HAB/CAMA + EDAD #}
         <div class="d-flex justify-content-between align-items-start">
           <div>
@@ -117,12 +130,10 @@
 
         <hr class="my-2">
 
-        {# NOMBRE #}
         <div class="fw-semibold fs-6">
           {{ i.nombre_paciente }}
         </div>
 
-        {# SIGNOS VITALES #}
         {% if i.signos_vitales %}
           <div class="small text-muted mt-1">
             <strong>SV:</strong>
@@ -130,13 +141,11 @@
           </div>
         {% endif %}
 
-        {# DIAGNÓSTICOS #}
         <div class="small mt-2">
           <strong>Dx:</strong>
           {{ i.diagnosticos or '—' }}
         </div>
 
-        {# CONDICIÓN / PLAN #}
         <div class="small mt-1">
           <strong>Plan:</strong>
           {{ i.condicion_plan or '—' }}
@@ -144,7 +153,6 @@
 
         <hr class="my-2">
 
-        {# FOOTER INFO #}
         <div class="d-flex flex-wrap gap-2 small">
           <span class="text-muted">
             <strong>Días ingreso:</strong> {{ i.dias_hospitalizado }}
@@ -175,7 +183,6 @@
           {% endif %}
         </div>
 
-        {# ACCIONES #}
         <div class="mt-3 d-flex justify-content-end gap-2">
           <a href="{{ url_for('internamientos_editar', i_id=i.id) }}"
              class="btn btn-sm btn-outline-primary">
@@ -191,7 +198,6 @@
           </form>
           {% endif %}
         </div>
-
       </div>
     {% endfor %}
   {% else %}
@@ -200,6 +206,8 @@
     </div>
   {% endif %}
 </div>
+
+
 
 
 
@@ -218,110 +226,116 @@
     </thead>
 
     <tbody>
-      {% if internamientos %}
-        {% for i in internamientos %}
-        <tr>
-          {# ÁREA + HABITACION #}
-          <td class="small">
-            <div class="fw-semibold">{{ i.area or '—' }}</div>
-            <div class="text-muted">Hab/Cama: {{ i.habitacion or '—' }}</div>
-          </td>
+  {% if internamientos %}
+    {% set ns = namespace(current_hosp=None) %}
+    {% for i in internamientos %}
 
-          {# NOMBRE DEL PACIENTE + INFO COMPLEMENTARIA #}
-          <td class="small">
-            <div class="fw-semibold">{{ i.nombre_paciente }}</div>
-
-            {# Signos vitales #}
-            {% if i.signos_vitales %}
-            <div class="text-muted mt-1"
-                 style="max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                 title="{{ i.signos_vitales }}">
-              SV: {{ i.signos_vitales }}
-            </div>
-            {% endif %}
-
-            {# Días de ingreso #}
-            <div class="text-muted mt-1">
-              Días de ingreso: {{ i.dias_hospitalizado }}
-            </div>
-
-            {# Médico de Guardia #}
-            <div class="text-muted mt-1">
-              Médico: 
-              {% if i.created_by %}
-                {{ i.created_by.nombre }} {{ i.created_by.apellido }}
-              {% else %}
-                —
-              {% endif %}
-            </div>
-
-            {# Egresado #}
-            <div class="mt-1">
-              {% if i.egresado %}
-                <span class="badge bg-success">Egresado</span>
-              {% else %}
-                <span class="badge bg-warning text-dark">Activo</span>
-              {% endif %}
-            </div>
-
-            {# Última actualización #}
-            <div class="text-muted mt-1 small">
-              Última actualización:
-              {% if i.fecha_actualizacion %}
-                {{ i.fecha_actualizacion.strftime('%Y-%m-%d %H:%M') }}
-              {% else %}
-                —
-              {% endif %}
-            </div>
-          </td>
-
-          {# EDAD #}
-          <td class="text-center small">
-            {{ i.edad if i.edad is not none else '—' }}
-          </td>
-
-          {# DIAGNÓSTICOS #}
-          <td class="small"
-              style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-              title="{{ i.diagnosticos or '' }}">
-            {{ i.diagnosticos or '—' }}
-          </td>
-
-          {# CONDICIÓN / PLAN #}
-          <td class="small"
-              style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-              title="{{ i.condicion_plan or '' }}">
-            {{ i.condicion_plan or '—' }}
-          </td>
-
-          {# ACCIONES #}
-          <td class="text-end text-nowrap">
-            <a href="{{ url_for('internamientos_editar', i_id=i.id) }}"
-               class="btn btn-sm btn-outline-primary me-1">
-              <i class="bi bi-pencil-square"></i> Editar
-            </a>
-            {% if current_user.is_admin or current_user.is_hospital_admin %}
-            <form action="{{ url_for('internamientos_eliminar', i_id=i.id) }}"
-                  method="POST"
-                  style="display:inline-block;"
-                  onsubmit="return confirm('¿Seguro que deseas eliminar este internamiento?');">
-              <button type="submit" class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-trash"></i> Eliminar
-              </button>
-            </form>
-
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      {% else %}
-        <tr>
-          <td colspan="6" class="text-center text-muted py-4">
-            No hay internamientos registrados.
+      {# Encabezado por hospital solo para Admin general sin filtro #}
+      {% if current_user.is_admin and not request.args.get('hospital') and ns.current_hosp != i.hospital %}
+        {% set ns.current_hosp = i.hospital %}
+        <tr class="table-secondary">
+          <td colspan="6" class="fw-semibold">
+            <i class="bi bi-hospital"></i>
+            Hospital {{ ns.current_hosp }}
+            <span class="text-muted fw-normal">
+              — Total ingresos: {{ totales_por_hospital[ns.current_hosp] }}
+            </span>
           </td>
         </tr>
       {% endif %}
-    </tbody>
+
+      <tr>
+        <td class="small">
+          <div class="fw-semibold">{{ i.area or '—' }}</div>
+          <div class="text-muted">Hab/Cama: {{ i.habitacion or '—' }}</div>
+        </td>
+
+        <td class="small">
+          <div class="fw-semibold">{{ i.nombre_paciente }}</div>
+
+          {% if i.signos_vitales %}
+          <div class="text-muted mt-1"
+               style="max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+               title="{{ i.signos_vitales }}">
+            SV: {{ i.signos_vitales }}
+          </div>
+          {% endif %}
+
+          <div class="text-muted mt-1">
+            Días de ingreso: {{ i.dias_hospitalizado }}
+          </div>
+
+          <div class="text-muted mt-1">
+            Médico:
+            {% if i.created_by %}
+              {{ i.created_by.nombre }} {{ i.created_by.apellido }}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+
+          <div class="mt-1">
+            {% if i.egresado %}
+              <span class="badge bg-success">Egresado</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">Activo</span>
+            {% endif %}
+          </div>
+
+          <div class="text-muted mt-1 small">
+            Última actualización:
+            {% if i.fecha_actualizacion %}
+              {{ i.fecha_actualizacion.strftime('%Y-%m-%d %H:%M') }}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </td>
+
+        <td class="text-center small">
+          {{ i.edad if i.edad is not none else '—' }}
+        </td>
+
+        <td class="small"
+            style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="{{ i.diagnosticos or '' }}">
+          {{ i.diagnosticos or '—' }}
+        </td>
+
+        <td class="small"
+            style="max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            title="{{ i.condicion_plan or '' }}">
+          {{ i.condicion_plan or '—' }}
+        </td>
+
+        <td class="text-end text-nowrap">
+          <a href="{{ url_for('internamientos_editar', i_id=i.id) }}"
+             class="btn btn-sm btn-outline-primary me-1">
+            <i class="bi bi-pencil-square"></i> Editar
+          </a>
+          {% if current_user.is_admin or current_user.is_hospital_admin %}
+          <form action="{{ url_for('internamientos_eliminar', i_id=i.id) }}"
+                method="POST"
+                style="display:inline-block;"
+                onsubmit="return confirm('¿Seguro que deseas eliminar este internamiento?');">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i> Eliminar
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  {% else %}
+    <tr>
+      <td colspan="6" class="text-center text-muted py-4">
+        No hay internamientos registrados.
+      </td>
+    </tr>
+  {% endif %}
+</tbody>
+
+
   </table>
 </div>
 

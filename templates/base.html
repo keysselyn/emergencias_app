@@ -219,7 +219,8 @@
         <a class="nav-link dropdown-toggle
                   {% if request.path.startswith('/hospitales')
                         or request.path.startswith('/usuarios')
-                        or request.path.startswith('/internamientos')
+                        or request.path.startswith('/listar')
+                        or request.path.startswith('/perfil')
                         or request.path.startswith('/offline') %}active{% endif %}"
            href="#"
            id="moreDropup"
