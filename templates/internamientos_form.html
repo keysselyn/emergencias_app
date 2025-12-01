@@ -121,14 +121,79 @@
             Detalle clínico
           </div>
         </div>
+<div class="col-12">
+  <label class="form-label fw-semibold">Signos vitales</label>
 
-        <div class="col-12">
-          <label class="form-label fw-semibold">Signos vitales</label>
-          <textarea name="signos_vitales"
-                    class="form-control"
-                    rows="2"
-                    placeholder="PA, FC, FR, SatO₂, T°…">{{ ir.signos_vitales if ir else '' }}</textarea>
-        </div>
+  <!-- Inputs por cada signo vital -->
+  <div class="row g-2 mb-2">
+
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-1">TA (mmHg)</label>
+      <input type="text"
+             class="form-control form-control-sm sv-input"
+             data-sv-field="ta"
+             placeholder="120/80">
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">FC (lpm)</label>
+      <input type="number"
+             class="form-control form-control-sm sv-input"
+             data-sv-field="fc"
+             placeholder="80">
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">FR (rpm)</label>
+      <input type="number"
+             class="form-control form-control-sm sv-input"
+             data-sv-field="fr"
+             placeholder="18">
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">SpO₂ (%)</label>
+      <input type="number"
+             class="form-control form-control-sm sv-input"
+             data-sv-field="spo2"
+             placeholder="97">
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">T° (°C)</label>
+      <input type="text"
+             class="form-control form-control-sm sv-input"
+             data-sv-field="temp"
+             placeholder="36.5">
+    </div>
+
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-1">Glicemia (mg/dL)</label>
+      <input type="number"
+             class="form-control form-control-sm sv-input"
+             data-sv-field="glu"
+             placeholder="110">
+    </div>
+
+  </div>
+
+  <!-- Textarea REAL que se manda al backend -->
+  <textarea name="signos_vitales"
+            id="signosVitalesRaw"
+            class="form-control form-control-sm d-none"
+            rows="2"
+            style="font-size: 0.75rem; opacity: .7;"
+            placeholder="Se llenará automáticamente según los recuadros de arriba">{{ ir.signos_vitales if ir else '' }}</textarea>
+
+  <div class="form-text d-none">
+    Se almacenará algo como:<br>
+    <code>
+      TA: 120/80 mmHg / FC: 80 lpm / FR: 18 rpm / SpO₂: 97% / T°: 36.5 °C / Glicemia: 110 mg/dL
+    </code>
+  </div>
+</div>
+
+
 
         <div class="col-12">
           <label class="form-label fw-semibold">Diagnósticos</label>
@@ -296,4 +361,104 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const textarea = document.getElementById("signosVitalesRaw");
+  if (!textarea) return;
+
+  const inputs = document.querySelectorAll(".sv-input");
+
+  // --- 1) Parsear lo que viene de BD -> valores por campo ---
+  function parseSignosVitales(raw) {
+    const data = {
+      ta:   "",
+      fc:   "",
+      fr:   "",
+      spo2: "",
+      temp: "",
+      glu:  ""
+    };
+
+    if (!raw) return data;
+
+    let m;
+
+    // TA: 120/80 mmHg
+    m = raw.match(/TA:\s*([0-9]+\/[0-9]+)/i);
+    if (m) data.ta = m[1];
+
+    // FC: 80 lpm
+    m = raw.match(/FC:\s*([0-9]+)/i);
+    if (m) data.fc = m[1];
+
+    // FR: 18 rpm
+    m = raw.match(/FR:\s*([0-9]+)/i);
+    if (m) data.fr = m[1];
+
+    // SpO₂: 97% (aceptamos SpO2, SpO₂, spo2, etc.)
+    m = raw.match(/SpO.?2:\s*([0-9]+)/i);
+    if (m) data.spo2 = m[1];
+
+    // T°: 36.5 °C  (T°, Tº, T:, Temp:)
+    m = raw.match(/T(?:[:°º]|emp)?:\s*([0-9]+(?:\.[0-9]+)?)/i);
+    if (m) data.temp = m[1];
+
+    // Glicemia: 110 mg/dL
+    m = raw.match(/Glicemia:\s*([0-9]+)/i);
+    if (m) data.glu = m[1];
+
+    return data;
+  }
+
+  // --- 2) Construir la cadena para guardar en BD desde inputs ---
+  function buildSignosVitales() {
+    const vals = { ta: "", fc: "", fr: "", spo2: "", temp: "", glu: "" };
+
+    inputs.forEach(input => {
+      const field = input.getAttribute("data-sv-field");
+      if (field && field in vals) {
+        vals[field] = (input.value || "").trim();
+      }
+    });
+
+    const partes = [];
+
+    if (vals.ta)   partes.push(`TA: ${vals.ta} mmHg`);
+    if (vals.fc)   partes.push(`FC: ${vals.fc} lpm`);
+    if (vals.fr)   partes.push(`FR: ${vals.fr} rpm`);
+    if (vals.spo2) partes.push(`SpO₂: ${vals.spo2}%`);
+    if (vals.temp) partes.push(`T°: ${vals.temp} °C`);
+    if (vals.glu)  partes.push(`Glicemia: ${vals.glu} mg/dL`);
+
+    textarea.value = partes.join(" / ");
+  }
+
+  // --- 3) Inicializar inputs a partir de lo que ya viene en textarea ---
+  const inicial = textarea.value || "";
+  const parsed = parseSignosVitales(inicial);
+
+  inputs.forEach(input => {
+    const field = input.getAttribute("data-sv-field");
+    if (field && parsed[field] !== undefined) {
+      input.value = parsed[field];
+    }
+
+    input.addEventListener("input", buildSignosVitales);
+  });
+
+  // --- 4) Si el usuario edita el textarea manualmente, reparsear y actualizar inputs ---
+  textarea.addEventListener("input", () => {
+    const nuevoParsed = parseSignosVitales(textarea.value);
+    inputs.forEach(input => {
+      const field = input.getAttribute("data-sv-field");
+      if (field && nuevoParsed[field] !== undefined) {
+        input.value = nuevoParsed[field];
+      }
+    });
+  });
+});
+</script>
+
+
 {% endblock %}
