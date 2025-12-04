@@ -1,0 +1,407 @@
+{% extends 'base.html' %}
+{% block content %}
+
+{% set meses = [
+'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+] %}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+
+        <!-- Encabezado -->
+        <div class="d-flex align-items-center mb-3">
+            <div class="me-3 rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+                style="width:48px;height:48px;">
+                <i class="bi bi-calendar2-week text-primary fs-3"></i>
+            </div>
+            <div>
+                <h5 class="card-title mb-0">Calendario de Guardias</h5>
+                <small class="text-muted">
+                    {{ current_user.hospital or 'Hospital' }} • Distribución mensual de guardias
+                </small>
+            </div>
+        </div>
+
+        <!-- Selector mes / año -->
+        <form class="row g-2 align-items-end mb-3" method="get" action="{{ url_for('guardias_calendario') }}">
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1">Mes</label>
+                <select name="mes" class="form-select form-select-sm">
+                    {% for m in range(1,13) %}
+                    <option value="{{ m }}" {% if m==mes %}selected{% endif %}>
+                        {{ meses[m-1] }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1">Año</label>
+                <select name="anio" class="form-select form-select-sm">
+                    {% for y in range(anio-1, anio+2) %}
+                    <option value="{{ y }}" {% if y==anio %}selected{% endif %}>
+                        {{ y }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-3 mt-2 mt-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Cambiar mes
+                </button>
+            </div>
+            <div class="col-12 col-md-3 mt-2 mt-md-4 d-flex justify-content-md-end">
+                <!-- Botón para abrir modal de edición rápida por médico -->
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#modalEdicionMedicos">
+                    <i class="bi bi-people me-1"></i>
+                    Edición rápida por médico
+                </button>
+
+            </div>
+
+            <div class="col-12 col-md-3 mt-2 mt-md-4 d-flex justify-content-md-end">
+                <!-- Botón para abrir modal de edición rápida por médico -->
+                <a href="{{ url_for('guardias_calendario_pdf', anio=anio_guardias, mes=mes_guardias) }}"
+                    class="btn btn-sm btn-outline-danger" target="_blank">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>
+                    PDF resumen de guardias
+                </a>
+
+            </div>
+
+
+        </form>
+
+        <!-- Resumen -->
+        <p class="text-muted small mb-3">
+            Visualiza y edita la distribución de guardias para
+            <strong>{{ meses[mes-1] }} {{ anio }}</strong>.
+            Puedes tocar un día para ajustar los médicos asignados o usar la edición rápida por médico.
+        </p>
+
+        <!-- Calendario ESCRITORIO -->
+        <div class="table-responsive mb-3 d-none d-md-block">
+            <table class="table table-bordered table-sm calendar-table">
+                <thead class="table-light">
+                    <tr class="text-center">
+                        <th class="small">Lun</th>
+                        <th class="small">Mar</th>
+                        <th class="small">Mié</th>
+                        <th class="small">Jue</th>
+                        <th class="small">Vie</th>
+                        <th class="small">Sáb</th>
+                        <th class="small">Dom</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for semana in semanas %}
+                    <tr>
+                        {% for celda in semana %}
+                        {% if celda is none %}
+                        <td class="bg-light-subtle" style="min-width:110px;"></td>
+                        {% else %}
+                        <td class="align-top {% if celda.es_hoy %}day-today{% endif %}" style="min-width:110px;">
+
+
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold small">{{ celda.fecha.day }}</span>
+
+                                <!-- botón de edición (solo en escritorio) -->
+                                <button type="button" class="btn btn-xs btn-outline-primary" data-bs-toggle="modal"
+                                    data-bs-target="#modalEditarDia" data-dia="{{ celda.fecha.day }}"
+                                    data-medicos="{{ celda.medicos_ids | join(',') }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+
+                            {% if celda.medicos %}
+                            <div class="small">
+                                {% for m in celda.medicos %}
+                                <div class="badge bg-primary-subtle text-primary mb-1 w-100 text-start">
+                                    {% if m.nombre and m.apellido %}
+                                    {{ m.nombre }} {{ m.apellido }}
+                                    {% elif m.nombre %}
+                                    {{ m.nombre }}
+                                    {% else %}
+                                    {{ m.username }}
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">Sin guardia</span>
+                            {% endif %}
+
+                        </td>
+                        {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Calendario MÓVIL con recuadros de color -->
+        <div class="d-md-none mb-3">
+            <div class="table-responsive">
+                <table class="table calendar-table-mobile w-100">
+                    <thead class="text-center">
+                        <tr>
+                            <th class="small">L</th>
+                            <th class="small">M</th>
+                            <th class="small">X</th>
+                            <th class="small">J</th>
+                            <th class="small">V</th>
+                            <th class="small">S</th>
+                            <th class="small">D</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for semana in semanas %}
+                        <tr>
+                            {% for celda in semana %}
+                            {% if celda is none %}
+                            <td class="p-1 day-box empty"></td>
+                            {% else %}
+                            {% set colores = [] %}
+                            {% for m in celda.medicos %}
+                            {% set _ = colores.append(color_map[m.id]) %}
+                            {% endfor %}
+
+                            <td class="p-1 day-box {% if celda.es_hoy %}today{% endif %}" style="
+                        background:
+                          {% if colores|length == 1 %}
+                            {{ colores[0] }}
+                          {% elif colores|length > 1 %}
+                            linear-gradient(135deg,
+                              {{ colores[0] }} 0%,
+                              {{ colores[1] }} 100%
+                            )
+                          {% else %}
+                            #e9ecef
+                          {% endif %};
+                        color: white;
+                      " data-bs-toggle="modal" data-bs-target="#modalEditarDia" data-dia="{{ celda.fecha.day }}"
+                                data-medicos="{{ celda.medicos_ids | join(',') }}">
+                                <div class="fw-bold small">
+                                    {{ celda.fecha.day }}
+                                </div>
+                            </td>
+                            {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Leyenda de colores (solo médicos con días asignados) -->
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-body py-2">
+                    <h6 class="small fw-semibold mb-2 d-flex align-items-center">
+                        <i class="bi bi-palette me-2"></i>
+                        Médicos asignados este mes
+                    </h6>
+
+                    <div class="legend-grid">
+                        {% for m in medicos %}
+                        {% set asign = asignaciones.get(m.id) %}
+                        {% if asign and asign.dias_list|length > 0 %}
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: {{ color_map[m.id] }};"></span>
+                            {% if m.nombre and m.apellido %}
+                            {{ m.nombre }} {{ m.apellido }}
+                            {% elif m.nombre %}
+                            {{ m.nombre }}
+                            {% else %}
+                            {{ m.username }}
+                            {% endif %}
+                            <span class="text-muted ms-1">
+                                — {{ guardias_por_medico.get(m.id, 0) }} día{{ '' if guardias_por_medico.get(m.id, 0) ==
+                                1 else 's' }}
+                            </span>
+                        </div>
+
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL: Crear / editar distribución de guardia por día -->
+<div class="modal fade" id="modalEditarDia" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('guardar_guardias_dia') }}">
+                {{ csrf_token() if csrf_token is defined }}
+
+                <input type="hidden" name="anio" value="{{ anio }}">
+                <input type="hidden" name="mes" value="{{ mes }}">
+                <input type="hidden" name="dia" id="modal-dia-input">
+
+                <div class="modal-header py-2">
+                    <h6 class="modal-title">
+                        <i class="bi bi-calendar2-week me-1"></i>
+                        Guardias del día <span id="modal-dia-label"></span>
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <p class="small text-muted">
+                        Selecciona los médicos que tendrán guardia en el día indicado.
+                    </p>
+
+                    <div class="border rounded p-2" style="max-height:320px; overflow-y:auto;">
+                        {% for medico in medicos %}
+                        <div class="form-check mb-1">
+                            <input class="form-check-input medico-checkbox" type="checkbox" name="medicos_ids"
+                                value="{{ medico.id }}" id="medico-dia-{{ medico.id }}">
+                            <label class="form-check-label small" for="medico-dia-{{ medico.id }}">
+                                {% if medico.nombre and medico.apellido %}
+                                {{ medico.nombre }} {{ medico.apellido }}
+                                {% elif medico.nombre %}
+                                {{ medico.nombre }}
+                                {% else %}
+                                {{ medico.username }}
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-save me-1"></i> Guardar
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Edición rápida por médico -->
+<div class="modal fade" id="modalEdicionMedicos" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+
+            <form method="post" action="{{ url_for('guardar_guardias_medicos') }}">
+                {{ csrf_token() if csrf_token is defined }}
+
+                <input type="hidden" name="anio" value="{{ anio }}">
+                <input type="hidden" name="mes" value="{{ mes }}">
+
+                <div class="modal-header py-2">
+                    <h5 class="modal-title">
+                        <i class="bi bi-people me-1"></i>
+                        Edición rápida por médico — {{ meses[mes-1] }} {{ anio }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        Edita todos los días de guardia asignados a cada médico.
+                        Escribe los días separados por coma, ejemplo:
+                        <code>1, 7, 13, 22, 28</code>.
+                    </p>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 35%;">Médico</th>
+                                    <th style="width: 65%;">Días de guardia</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for medico in medicos %}
+                                {% set asign = asignaciones.get(medico.id) %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center me-2"
+                                                style="width:28px;height:28px;">
+                                                <span class="text-primary fw-semibold" style="font-size: .75rem;">
+                                                    {{ (medico.nombre or medico.username or '?')[0] }}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <div class="fw-semibold" style="font-size: .85rem;">
+                                                    {% if medico.nombre and medico.apellido %}
+                                                    {{ medico.nombre }} {{ medico.apellido }}
+                                                    {% elif medico.nombre %}
+                                                    {{ medico.nombre }}
+                                                    {% else %}
+                                                    {{ medico.username }}
+                                                    {% endif %}
+                                                </div>
+                                                <div class="text-muted small">
+                                                    {{ current_user.hospital }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                            name="dias_{{ medico.id }}" placeholder="Ej.: 1, 7, 13, 22, 28"
+                                            value="{{ asign.dias if asign else '' }}">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-save me-1"></i>
+                        Guardar cambios
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JS: rellenar modal por día con día y médicos actuales -->
+<script>
+    const modalEditarDia = document.getElementById('modalEditarDia');
+    if (modalEditarDia) {
+        modalEditarDia.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const dia = button.getAttribute('data-dia');
+            const medicosStr = button.getAttribute('data-medicos') || '';
+            const seleccionados = medicosStr.split(',').map(x => x.trim()).filter(x => x !== '');
+
+            const label = modalEditarDia.querySelector('#modal-dia-label');
+            label.textContent = dia;
+
+            const diaInput = modalEditarDia.querySelector('#modal-dia-input');
+            diaInput.value = dia;
+
+            const checks = modalEditarDia.querySelectorAll('.medico-checkbox');
+            checks.forEach(chk => {
+                chk.checked = seleccionados.includes(chk.value);
+            });
+        });
+    }
+</script>
+
+{% endblock %}

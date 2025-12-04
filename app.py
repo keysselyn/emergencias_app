@@ -1,11 +1,25 @@
 # app.py (LIMPIO Y FUNCIONAL)
 
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash, Response,
-    send_from_directory, abort, jsonify, make_response, current_app
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    Response,
+    send_from_directory,
+    abort,
+    jsonify,
+    make_response,
+    current_app,
 )
 from flask_login import (
-    LoginManager, login_user, logout_user, current_user, login_required
+    LoginManager,
+    login_user,
+    logout_user,
+    current_user,
+    login_required,
 )
 
 from datetime import datetime, date, timedelta
@@ -32,6 +46,7 @@ mes_actual = now_local().month
 
 # Para generar la gráfica en imagen
 import matplotlib
+
 matplotlib.use("Agg")  # importante: backend sin interfaz gráfica
 import matplotlib.pyplot as plt
 import uuid
@@ -73,15 +88,17 @@ ALLOWED_LOGO_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 def allowed_logo_file(filename: str) -> bool:
     if not filename:
         return False
-    return "." in filename and filename.rsplit(".", 1)[-1].lower() in ALLOWED_LOGO_EXTENSIONS
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[-1].lower() in ALLOWED_LOGO_EXTENSIONS
+    )
 
 
 # ==============================
 # DB CONFIG (MySQL / Railway)
 # ==============================
 DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "mysql+pymysql://root:@127.0.0.1:3306/emergencias?charset=utf8mb4"
+    "DATABASE_URL", "mysql+pymysql://root:@127.0.0.1:3306/emergencias?charset=utf8mb4"
 )
 
 if not DATABASE_URL:
@@ -114,6 +131,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 
 db.init_app(app)
 from bootstrap import run_bootstrap_on_start
+
 run_bootstrap_on_start(app)
 
 # ==============================
@@ -134,12 +152,14 @@ def load_user(user_id):
 # ==============================
 def admin_required(fn):
     """Solo Admin general (is_admin=True)."""
+
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
             flash("Solo Administradores generales.", "danger")
             return redirect(url_for("index"))
         return fn(*args, **kwargs)
+
     return wrapper
 
 
@@ -149,6 +169,7 @@ def hospital_admin_required(fn):
       - Admin general (is_admin=True)
       - Admin de hospital (is_hospital_admin=True)
     """
+
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated:
@@ -157,6 +178,7 @@ def hospital_admin_required(fn):
             flash("Solo administradores (general o de hospital).", "danger")
             return redirect(url_for("index"))
         return fn(*args, **kwargs)
+
     return wrapper
 
 
@@ -178,10 +200,13 @@ def user_hospital_scope():
 def inject_choices():
     """Hace disponibles los hospitales activos en todas las plantillas."""
     try:
-        hospitales = Hospital.query.filter_by(activo=True).order_by(Hospital.nombre.asc()).all()
+        hospitales = (
+            Hospital.query.filter_by(activo=True).order_by(Hospital.nombre.asc()).all()
+        )
     except Exception:
         hospitales = []
     return dict(HOSPITALES=hospitales)
+
 
 # ==============================
 # BOOTSTRAP DB (OPCIONAL)
@@ -235,7 +260,7 @@ def bootstrap_if_empty():
                 username=admin_user,
                 hospital=admin_hosp,
                 is_admin=True,
-                is_hospital_admin=True
+                is_hospital_admin=True,
             )
             u.set_password(admin_pass)
             db.session.add(u)
@@ -280,59 +305,17 @@ def healthz():
 # ==============================
 # PÁGINAS BASE / LOGIN / Perfil de Usuario
 # ==============================
-@app.route('/')
+from flask import redirect, url_for
+from flask_login import current_user
+
+@app.route("/")
 def index():
-    hoy = now_local().strftime("%Y-%m-%d")
-
-    # Valores por defecto para cuando no haya login
-    kpi_guardias_hoy = 0
-    kpi_internamientos_activos = 0
-    kpi_internamientos_egresados_hoy = 0
-
+    # Si está autenticado, lo mandamos al dashboard
     if current_user.is_authenticated:
-        # Fecha "hoy" a nivel de fecha (sin hora)
-        hoy_date = today_local()
+        return redirect(url_for("dashboard"))
+    # Si no, al login (o a una landing si quieres)
+    return redirect(url_for("login"))
 
-        # Alcance por hospital según rol
-        scope_hosp = user_hospital_scope()
-
-        # Guardias de hoy
-        q_guardias = GuardiaEmergencia.query.filter(
-            GuardiaEmergencia.fecha == hoy_date
-        )
-
-        # Internamientos del hospital (activos + egresados)
-        q_intern = Internamiento.query
-
-        if scope_hosp:
-            q_guardias = q_guardias.filter(GuardiaEmergencia.hospital == scope_hosp)
-            q_intern = q_intern.filter(Internamiento.hospital == scope_hosp)
-
-        # Conteos
-        kpi_guardias_hoy = q_guardias.count()
-
-        # Internamientos activos (no egresados)
-        kpi_internamientos_activos = q_intern.filter(
-            Internamiento.egresado == False
-        ).count()
-
-        # Internamientos egresados HOY (según fecha_actualizacion)
-        inicio_hoy = datetime.combine(hoy_date, datetime.min.time())
-        fin_hoy = datetime.combine(hoy_date, datetime.max.time())
-
-        kpi_internamientos_egresados_hoy = q_intern.filter(
-            Internamiento.egresado == True,
-            Internamiento.fecha_actualizacion >= inicio_hoy,
-            Internamiento.fecha_actualizacion <= fin_hoy
-        ).count()
-
-    return render_template(
-        'index.html',
-        hoy=hoy,
-        kpi_guardias_hoy=kpi_guardias_hoy,
-        kpi_internamientos_activos=kpi_internamientos_activos,
-        kpi_internamientos_egresados_hoy=kpi_internamientos_egresados_hoy
-    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -357,24 +340,24 @@ def logout():
     return redirect(url_for("index"))
 
 
-@app.route('/perfil', methods=['GET', 'POST'])
+@app.route("/perfil", methods=["GET", "POST"])
 @login_required
 def perfil():
     u = current_user
 
-    if request.method == 'POST':
-        username = (request.form.get('username') or '').strip()
-        password1 = request.form.get('password1') or ''
-        password2 = request.form.get('password2') or ''
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password1 = request.form.get("password1") or ""
+        password2 = request.form.get("password2") or ""
 
         if not username:
-            flash('El nombre de usuario es obligatorio.', 'danger')
-            return render_template('perfil.html', u=u)
+            flash("El nombre de usuario es obligatorio.", "danger")
+            return render_template("perfil.html", u=u)
 
         existe = User.query.filter(User.id != u.id, User.username == username).first()
         if existe:
-            flash('Ese nombre de usuario ya está en uso.', 'danger')
-            return render_template('perfil.html', u=u)
+            flash("Ese nombre de usuario ya está en uso.", "danger")
+            return render_template("perfil.html", u=u)
 
         u.username = username
         u.nombre = request.form.get("nombre")
@@ -388,15 +371,15 @@ def perfil():
 
         if password1 or password2:
             if password1 != password2:
-                flash('Las contraseñas no coinciden.', 'danger')
-                return render_template('perfil.html', u=u)
+                flash("Las contraseñas no coinciden.", "danger")
+                return render_template("perfil.html", u=u)
             u.set_password(password1)
 
         db.session.commit()
-        flash('Perfil actualizado correctamente.', 'success')
-        return redirect(url_for('perfil'))
+        flash("Perfil actualizado correctamente.", "success")
+        return redirect(url_for("perfil"))
 
-    return render_template('perfil.html', u=u)
+    return render_template("perfil.html", u=u)
 
 
 # ======================================================================
@@ -404,6 +387,7 @@ def perfil():
 # ======================================================================
 @app.route("/nuevo", methods=["GET", "POST"])
 @login_required
+@hospital_admin_required
 def nuevo():
     if request.method == "POST":
         try:
@@ -412,7 +396,9 @@ def nuevo():
 
             if current_user.is_admin:
                 hospital_nombre = (request.form.get("hospital") or "").strip()
-                ok = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
+                ok = Hospital.query.filter_by(
+                    nombre=hospital_nombre, activo=True
+                ).first()
                 if not ok:
                     flash("Hospital inválido o inactivo.", "danger")
                     return render_template("form.html")
@@ -420,12 +406,14 @@ def nuevo():
             else:
                 hospital = current_user.hospital
 
-            existente = EmergencyRecord.query.filter_by(fecha=fecha, hospital=hospital).first()
+            existente = EmergencyRecord.query.filter_by(
+                fecha=fecha, hospital=hospital
+            ).first()
             if existente:
                 flash(
                     "Ya existe un registro para este hospital en esa fecha. "
                     "Edítalo en lugar de crear uno nuevo.",
-                    "danger"
+                    "danger",
                 )
                 return redirect(url_for("editar", rec_id=existente.id))
 
@@ -445,7 +433,9 @@ def nuevo():
                 traslados=to_int("traslados"),
                 defunciones=to_int("defunciones"),
                 motivo_traslado=(request.form.get("motivo_traslado") or "").strip(),
-                hospital_referencia=(request.form.get("hospital_referencia") or "").strip(),
+                hospital_referencia=(
+                    request.form.get("hospital_referencia") or ""
+                ).strip(),
                 eventualidades=(request.form.get("eventualidades") or "").strip(),
                 created_by_id=current_user.id,
             )
@@ -462,6 +452,7 @@ def nuevo():
 
 @app.route("/editar/<int:rec_id>", methods=["GET", "POST"])
 @login_required
+@hospital_admin_required
 def editar(rec_id):
     rec = EmergencyRecord.query.get_or_404(rec_id)
 
@@ -476,7 +467,9 @@ def editar(rec_id):
 
             if current_user.is_admin:
                 hospital_nombre = (request.form.get("hospital") or rec.hospital).strip()
-                ok = Hospital.query.filter_by(nombre=hospital_nombre, activo=True).first()
+                ok = Hospital.query.filter_by(
+                    nombre=hospital_nombre, activo=True
+                ).first()
                 if not ok:
                     flash("Hospital inválido o inactivo.", "danger")
                     return render_template("edit.html", rec=rec)
@@ -487,10 +480,12 @@ def editar(rec_id):
             duplicado = EmergencyRecord.query.filter(
                 EmergencyRecord.id != rec.id,
                 EmergencyRecord.fecha == nueva_fecha,
-                EmergencyRecord.hospital == nuevo_hospital
+                EmergencyRecord.hospital == nuevo_hospital,
             ).first()
             if duplicado:
-                flash("Ya existe otro registro para este hospital en esa fecha.", "danger")
+                flash(
+                    "Ya existe otro registro para este hospital en esa fecha.", "danger"
+                )
                 return render_template("edit.html", rec=rec)
 
             rec.fecha = nueva_fecha
@@ -511,7 +506,9 @@ def editar(rec_id):
             rec.traslados = to_int("traslados", rec.traslados)
             rec.defunciones = to_int("defunciones", rec.defunciones)
             rec.motivo_traslado = (request.form.get("motivo_traslado") or "").strip()
-            rec.hospital_referencia = (request.form.get("hospital_referencia") or "").strip()
+            rec.hospital_referencia = (
+                request.form.get("hospital_referencia") or ""
+            ).strip()
             rec.eventualidades = (request.form.get("eventualidades") or "").strip()
 
             db.session.commit()
@@ -537,6 +534,7 @@ def eliminar(rec_id):
 
 @app.route("/listar")
 @login_required
+@hospital_admin_required
 def listar():
     f_hospital = (request.args.get("hospital") or "").strip()
     f_desde = request.args.get("desde")
@@ -583,9 +581,9 @@ def listar():
     # Traer solo la página actual
     registros = (
         q.order_by(EmergencyRecord.fecha.desc(), EmergencyRecord.id.desc())
-         .offset((page - 1) * per_page)
-         .limit(per_page)
-         .all()
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
     )
 
     return render_template(
@@ -601,6 +599,7 @@ def listar():
 # ================== EXPORTAR CSV ==================
 @app.route("/exportar_csv")
 @login_required
+@hospital_admin_required
 def exportar_csv():
     f_hospital = (request.args.get("hospital") or "").strip()
     f_desde = request.args.get("desde")
@@ -628,15 +627,26 @@ def exportar_csv():
     if d_hasta:
         q = q.filter(EmergencyRecord.fecha <= d_hasta)
 
-    registros = q.order_by(EmergencyRecord.fecha.desc(), EmergencyRecord.id.desc()).all()
+    registros = q.order_by(
+        EmergencyRecord.fecha.desc(), EmergencyRecord.id.desc()
+    ).all()
 
     si = StringIO()
     writer = csv.writer(si)
-    writer.writerow([
-        "Fecha", "Hospital", "Atenciones", "Ingresos", "Alta Voluntario",
-        "Traslados", "Motivo del traslado", "Hospital de referencia",
-        "Defunciones", "Eventualidades"
-    ])
+    writer.writerow(
+        [
+            "Fecha",
+            "Hospital",
+            "Atenciones",
+            "Ingresos",
+            "Alta Voluntario",
+            "Traslados",
+            "Motivo del traslado",
+            "Hospital de referencia",
+            "Defunciones",
+            "Eventualidades",
+        ]
+    )
     for r in registros:
         writer.writerow(r.to_row())
 
@@ -644,13 +654,16 @@ def exportar_csv():
     return Response(
         output,
         mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": "attachment; filename=registros_emergencias.csv"}
+        headers={
+            "Content-Disposition": "attachment; filename=registros_emergencias.csv"
+        },
     )
 
 
 # ================== EXPORTAR EXCEL ==================
 @app.route("/exportar_excel")
 @login_required
+@hospital_admin_required
 def exportar_excel():
     f_hospital = (request.args.get("hospital") or "").strip()
     f_desde = request.args.get("desde") or ""
@@ -669,7 +682,7 @@ def exportar_excel():
         d_desde, d_hasta = d_hasta, d_desde
         f_desde, f_hasta = (
             d_desde.isoformat() if d_desde else "",
-            d_hasta.isoformat() if d_hasta else ""
+            d_hasta.isoformat() if d_hasta else "",
         )
 
     q = EmergencyRecord.query
@@ -677,7 +690,9 @@ def exportar_excel():
 
     if not current_user.is_admin:
         q = q.filter(EmergencyRecord.hospital == current_user.hospital)
-        motivo_vacio.append(f"Rol usuario restringe a hospital '{current_user.hospital}'")
+        motivo_vacio.append(
+            f"Rol usuario restringe a hospital '{current_user.hospital}'"
+        )
     else:
         if f_hospital:
             q = q.filter(EmergencyRecord.hospital == f_hospital)
@@ -701,7 +716,9 @@ def exportar_excel():
             if f_hospital:
                 q2 = q2.filter(EmergencyRecord.hospital == f_hospital)
 
-        registros = q2.order_by(EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()).all()
+        registros = q2.order_by(
+            EmergencyRecord.fecha.asc(), EmergencyRecord.id.asc()
+        ).all()
         reintento_sin_fechas = True
 
     wb = Workbook()
@@ -709,9 +726,16 @@ def exportar_excel():
     ws.title = "Registros"
 
     headers = [
-        "Fecha", "Hospital", "Atenciones", "Ingresos", "Alta Voluntario",
-        "Traslados", "Motivo del traslado", "Hospital de referencia",
-        "Defunciones", "Eventualidades"
+        "Fecha",
+        "Hospital",
+        "Atenciones",
+        "Ingresos",
+        "Alta Voluntario",
+        "Traslados",
+        "Motivo del traslado",
+        "Hospital de referencia",
+        "Defunciones",
+        "Eventualidades",
     ]
     ws.append(headers)
 
@@ -748,18 +772,20 @@ def exportar_excel():
 
     row_start = 2
     for r in registros:
-        ws.append([
-            r.fecha,
-            r.hospital,
-            r.atenciones,
-            r.ingresos,
-            r.alta_voluntario,
-            r.traslados,
-            r.motivo_traslado or "",
-            r.hospital_referencia or "",
-            r.defunciones,
-            (r.eventualidades or "").replace("\r", " ")
-        ])
+        ws.append(
+            [
+                r.fecha,
+                r.hospital,
+                r.atenciones,
+                r.ingresos,
+                r.alta_voluntario,
+                r.traslados,
+                r.motivo_traslado or "",
+                r.hospital_referencia or "",
+                r.defunciones,
+                (r.eventualidades or "").replace("\r", " "),
+            ]
+        )
 
     COL_FECHA = 1
     COL_NUMS = [3, 4, 5, 6, 9]
@@ -784,8 +810,9 @@ def exportar_excel():
         for c in COL_NUMS:
             col_letter = get_column_letter(c)
             ws.cell(
-                row=total_row, column=c,
-                value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})"
+                row=total_row,
+                column=c,
+                value=f"=SUM({col_letter}{row_start}:{col_letter}{last_row})",
             ).style = "number_right"
 
         for c in range(1, len(headers) + 1):
@@ -811,7 +838,8 @@ def exportar_excel():
     summary["B3"] = now_local().strftime("%Y-%m-%d %H:%M")
     summary["A4"] = "Hospital:"
     summary["B4"] = (
-        f_hospital if (current_user.is_admin and f_hospital)
+        f_hospital
+        if (current_user.is_admin and f_hospital)
         else (current_user.hospital if not current_user.is_admin else "Todos")
     )
     summary["A5"] = "Desde:"
@@ -842,7 +870,7 @@ def exportar_excel():
     return Response(
         bio.getvalue(),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -887,15 +915,24 @@ def render_pdf_from_html(html: str, pdf_filename: str = "reporte.pdf"):
 #   DASHBOARD (Guardias + Internamientos)
 # ======================================================================
 import json
-from datetime import datetime as _dt_alias, date as _date_alias  # para no chocar con helpers
+from datetime import (
+    datetime as _dt_alias,
+    date as _date_alias,
+)  # para no chocar con helpers
 from dateutil import parser as _parser_alias
 
-@app.route('/dashboard')
+from models import GuardiaCalendarioMensual  # 🆕 asegúrate de tener este import
+
+import calendar as _calendar
+from models import GuardiaCalendarioMensual, User
+
+
+@app.route("/dashboard")
 @login_required
 def dashboard():
-    f_hospital = (request.args.get('hospital') or '').strip()
-    f_desde = request.args.get('desde') or ''
-    f_hasta = request.args.get('hasta') or ''
+    f_hospital = (request.args.get("hospital") or "").strip()
+    f_desde = request.args.get("desde") or ""
+    f_hasta = request.args.get("hasta") or ""
 
     # ---------- Helper fechas ----------
     def parse_date(s):
@@ -904,10 +941,11 @@ def dashboard():
         except Exception:
             return None
 
+    hoy = today_local()
+
     d_desde = parse_date(f_desde)
     d_hasta = parse_date(f_hasta)
 
-    hoy = today_local()
     # Si no hay fechas, usar mes actual
     if not d_desde and not d_hasta:
         d_desde = hoy.replace(day=1)
@@ -930,6 +968,112 @@ def dashboard():
         f_hospital = scope_hosp
     else:
         sel_hospital = f_hospital or "Todos"
+
+        # ============================================================
+    #   CALENDARIO COMPLETO DE GUARDIAS (solo vista)
+    # ============================================================
+    anio_guardias = hoy.year
+    mes_guardias = hoy.month
+    hospital_guardias = scope_hosp or current_user.hospital
+
+    # Médicos del hospital
+    medicos_cal = (
+        User.query.filter_by(hospital=hospital_guardias)
+        .order_by(User.nombre.asc())
+        .all()
+    )
+
+    # Paleta de colores por médico
+    palette = [
+        "#0d6efd",
+        "#198754",
+        "#ffc107",
+        "#dc3545",
+        "#20c997",
+        "#6f42c1",
+        "#fd7e14",
+        "#0dcaf0",
+        "#6c757d",
+    ]
+    color_map_cal = {}
+    for idx, m in enumerate(medicos_cal):
+        color_map_cal[m.id] = palette[idx % len(palette)]
+
+    filas_cal = GuardiaCalendarioMensual.query.filter_by(
+        hospital=hospital_guardias,
+        anio=anio_guardias,
+        mes=mes_guardias,
+    ).all()
+
+    asignaciones_cal = {f.medico_id: f for f in filas_cal}
+    dias_por_medico_cal = {f.medico_id: f.dias_list for f in filas_cal}
+
+    guardias_por_medico_cal = {
+        m_id: len(dias) for m_id, dias in dias_por_medico_cal.items()
+    }
+
+    cal = _calendar.Calendar(firstweekday=0)
+    semanas_cal = []
+    for week in cal.monthdatescalendar(anio_guardias, mes_guardias):
+        fila = []
+        for d in week:
+            if d.month != mes_guardias:
+                fila.append(None)
+                continue
+
+            dia_num = d.day
+            medicos_dia = []
+            medicos_ids_dia = []
+            for m in medicos_cal:
+                lista = dias_por_medico_cal.get(m.id, [])
+                if dia_num in lista:
+                    medicos_dia.append(m)
+                    medicos_ids_dia.append(m.id)
+
+            fila.append(
+                {
+                    "fecha": d,
+                    "medicos": medicos_dia,
+                    "medicos_ids": medicos_ids_dia,
+                }
+            )
+        semanas_cal.append(fila)
+
+
+    # 🆕 ============================================================
+    #   TUS GUARDIAS PARA ESTE MES (usuario actual)
+    # ============================================================
+    anio_guardias = hoy.year
+    mes_guardias = hoy.month
+
+    medico_id = current_user.id
+    hospital_guardias = current_user.hospital  # en piloto es el hospital del usuario
+
+    asign = GuardiaCalendarioMensual.query.filter_by(
+        hospital=hospital_guardias,
+        medico_id=medico_id,
+        anio=anio_guardias,
+        mes=mes_guardias,
+    ).first()
+
+    guardias_mes = asign.dias_list if asign else []  # lista de enteros [1, 7, 13, ...]
+
+    # 🆕 Próxima guardia (dentro del mismo mes)
+    proxima_guardia_fecha = None
+    proxima_guardia_dias = None
+
+    if guardias_mes:
+        dias_ordenados = sorted(guardias_mes)
+        futuros = [d for d in dias_ordenados if d >= hoy.day]
+
+        if futuros:
+            d_next = futuros[0]
+            proxima_guardia_fecha = hoy.replace(day=d_next)
+            proxima_guardia_dias = (proxima_guardia_fecha - hoy).days
+        else:
+            # Todas las guardias de este mes ya pasaron → no hay próxima
+            proxima_guardia_fecha = None
+            proxima_guardia_dias = None
 
     # ============================================================
     #   1) GUARDIAS DE EMERGENCIA
@@ -955,7 +1099,11 @@ def dashboard():
     guardia_ingresados_total = 0
 
     for g in guardias:
-        guardia_total_pacientes += (g.total_matutino or 0) + (g.total_vespertino or 0) + (g.total_nocturno or 0)
+        guardia_total_pacientes += (
+            (g.total_matutino or 0)
+            + (g.total_vespertino or 0)
+            + (g.total_nocturno or 0)
+        )
         guardia_adultos += g.adultos or 0
         guardia_pediatricos += g.pediatricos or 0
         guardia_ginecologicas += g.ginecologicas or 0
@@ -1048,11 +1196,15 @@ def dashboard():
             if (r.traslados or 0) > 0:
                 hosp_ref = (r.hospital_referencia or "").strip()
                 if hosp_ref:
-                    referral_counts[hosp_ref] = referral_counts.get(hosp_ref, 0) + (r.traslados or 0)
+                    referral_counts[hosp_ref] = referral_counts.get(hosp_ref, 0) + (
+                        r.traslados or 0
+                    )
 
                 motivo = (r.motivo_traslado or "").strip()
                 if motivo:
-                    motivo_counts[motivo] = motivo_counts.get(motivo, 0) + (r.traslados or 0)
+                    motivo_counts[motivo] = motivo_counts.get(motivo, 0) + (
+                        r.traslados or 0
+                    )
 
         labels = sorted(series.keys())
         chart_atenciones = [series[d]["atenciones"] for d in labels]
@@ -1068,13 +1220,13 @@ def dashboard():
             ranking = sorted(
                 ({"hospital": h, "atenciones": totales[h]} for h in totales),
                 key=lambda x: x["atenciones"],
-                reverse=True
+                reverse=True,
             )[:5]
 
     top_referrals = sorted(
         ({"hospital": h, "traslados": referral_counts[h]} for h in referral_counts),
         key=lambda x: x["traslados"],
-        reverse=True
+        reverse=True,
     )[:6]
 
     referral_labels = [x["hospital"] for x in top_referrals]
@@ -1083,14 +1235,18 @@ def dashboard():
     top_motivos = sorted(
         ({"motivo": m, "traslados": motivo_counts[m]} for m in motivo_counts),
         key=lambda x: x["traslados"],
-        reverse=True
+        reverse=True,
     )[:6]
 
     motivo_labels = [x["motivo"] for x in top_motivos]
     motivo_values = [x["traslados"] for x in top_motivos]
 
+    # 🆕 asegura que anio_actual / mes_actual existan
+    anio_actual = hoy.year
+    mes_actual = hoy.month
+
     return render_template(
-        'dashboard.html',
+        "dashboard.html",
         sel_hospital=sel_hospital,
         f_hospital=f_hospital,
         f_desde=d_desde.isoformat() if d_desde else "",
@@ -1119,7 +1275,19 @@ def dashboard():
         motivo_labels=json.dumps(motivo_labels),
         motivo_values=json.dumps(motivo_values),
         anio_actual=anio_actual,
-        mes_actual=mes_actual
+        mes_actual=mes_actual,
+        guardias_mes=guardias_mes,                  # 🆕
+        proxima_guardia_fecha=proxima_guardia_fecha,  # 🆕
+        proxima_guardia_dias=proxima_guardia_dias,    # 🆕
+        # 👇 datos para el calendario en el modal
+        semanas_cal=semanas_cal,
+        medicos_cal=medicos_cal,
+        color_map_cal=color_map_cal,
+        guardias_por_medico_cal=guardias_por_medico_cal,
+        anio_guardias=anio_guardias,
+        mes_guardias=mes_guardias,
+
+
     )
 
 
@@ -1128,7 +1296,19 @@ from datetime import date as _date2, timedelta as _td2, datetime as _dt2
 from dateutil import parser as _parser2
 import uuid as _uuid2
 import matplotlib.pyplot as _plt2
+import numpy as _np2
 import os as _os2
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+from sqlalchemy import func
+from datetime import date, timedelta, datetime
+from dateutil import parser
+import uuid
+import matplotlib.pyplot as plt
+import os
 import logging
 
 logger = logging.getLogger(__name__)
@@ -1136,14 +1316,14 @@ logger = logging.getLogger(__name__)
 
 def generar_grafica_dona_resumen(resumen_rows):
     """
-    Genera una imagen PNG con una gráfica de dona de ATENCIONES por hospital.
-    Devuelve la ruta tipo /static/img/archivo.png para usarla en el template PDF.
+    Gráfica de dona sin textos encima.
+    Leyenda al lado con cuadrito de color + nombre + porcentaje.
     """
     if not resumen_rows:
         return None
 
-    tmp_dir = os.path.join(app.static_folder, "img")
-    os.makedirs(tmp_dir, exist_ok=True)
+    tmp_dir = _os2.path.join(app.static_folder, "img")
+    _os2.makedirs(tmp_dir, exist_ok=True)
 
     labels = [row["hospital"] for row in resumen_rows]
     valores = [row["atenciones"] for row in resumen_rows]
@@ -1151,31 +1331,40 @@ def generar_grafica_dona_resumen(resumen_rows):
     if all(v == 0 for v in valores):
         return None
 
-    fig, ax = plt.subplots(figsize=(9, 5))
+    total_val = sum(valores)
+    if total_val == 0:
+        return None
 
-    wedges, texts, autotexts = ax.pie(
-        valores,
-        labels=labels,
-        autopct='%1.1f%%',
-        startangle=90,
-        pctdistance=0.8,
-        labeldistance=1.1,
-        wedgeprops=dict(width=0.35)
-    )
+    fig, ax = _plt2.subplots(figsize=(9, 5))
+
+    # --- DONA ---
+    wedges, _ = ax.pie(valores, startangle=90, wedgeprops=dict(width=0.35), radius=1.0)
 
     ax.set(aspect="equal")
     ax.set_title("ATENCIONES POR HOSPITAL", fontsize=12)
 
-    for t in autotexts:
-        t.set_fontsize(8)
-    for t in texts:
-        t.set_fontsize(8)
+    # --- LEYENDA: nombre + porcentaje ---
+    legend_labels = []
+    for name, val in zip(labels, valores):
+        pct = (val / total_val) * 100.0
+        legend_labels.append(f"{name} — {pct:.1f}%")
 
-    filename = f"resumen_dona_{uuid.uuid4().hex}.png"
-    filepath = os.path.join(tmp_dir, filename)
+    ax.legend(
+        wedges,
+        legend_labels,
+        title="Hospitales",
+        loc="center left",
+        bbox_to_anchor=(1.05, 0.5),
+        fontsize=9,
+        title_fontsize=10,
+        frameon=False,
+    )
+
+    filename = f"resumen_dona_{_uuid2.uuid4().hex}.png"
+    filepath = _os2.path.join(tmp_dir, filename)
 
     fig.savefig(filepath, dpi=130, bbox_inches="tight")
-    plt.close(fig)
+    _plt2.close(fig)
 
     return f"/static/img/{filename}"
 
@@ -1230,8 +1419,18 @@ def emergencias_resumen_pdf():
             hasta = date(anio, mes + 1, 1) - timedelta(days=1)
 
     meses_es = [
-        "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
-        "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+        "ENERO",
+        "FEBRERO",
+        "MARZO",
+        "ABRIL",
+        "MAYO",
+        "JUNIO",
+        "JULIO",
+        "AGOSTO",
+        "SEPTIEMBRE",
+        "OCTUBRE",
+        "NOVIEMBRE",
+        "DICIEMBRE",
     ]
 
     if (
@@ -1246,28 +1445,23 @@ def emergencias_resumen_pdf():
 
     from models import EmergencyRecord
 
-    base_q = db.session.query(
-        EmergencyRecord.hospital.label("hospital"),
-        func.sum(EmergencyRecord.atenciones).label("atenciones"),
-        func.sum(EmergencyRecord.ingresos).label("ingresos"),
-        func.sum(EmergencyRecord.alta_voluntario).label("alta_voluntario"),
-        func.sum(EmergencyRecord.traslados).label("traslados"),
-        func.sum(EmergencyRecord.defunciones).label("defunciones"),
-        func.count(
-            func.nullif(
-                func.length(
-                    func.coalesce(EmergencyRecord.eventualidades, "")
-                ),
-                0
-            )
-        ).label("eventualidades_count"),
-    ).filter(
-        EmergencyRecord.fecha >= desde,
-        EmergencyRecord.fecha <= hasta
-    ).group_by(
-        EmergencyRecord.hospital
-    ).order_by(
-        func.sum(EmergencyRecord.atenciones).desc()
+    base_q = (
+        db.session.query(
+            EmergencyRecord.hospital.label("hospital"),
+            func.sum(EmergencyRecord.atenciones).label("atenciones"),
+            func.sum(EmergencyRecord.ingresos).label("ingresos"),
+            func.sum(EmergencyRecord.alta_voluntario).label("alta_voluntario"),
+            func.sum(EmergencyRecord.traslados).label("traslados"),
+            func.sum(EmergencyRecord.defunciones).label("defunciones"),
+            func.count(
+                func.nullif(
+                    func.length(func.coalesce(EmergencyRecord.eventualidades, "")), 0
+                )
+            ).label("eventualidades_count"),
+        )
+        .filter(EmergencyRecord.fecha >= desde, EmergencyRecord.fecha <= hasta)
+        .group_by(EmergencyRecord.hospital)
+        .order_by(func.sum(EmergencyRecord.atenciones).desc())
     )
 
     resultados = base_q.all()
@@ -1294,7 +1488,13 @@ def emergencias_resumen_pdf():
         }
         resumen.append(data)
 
-        for k in ("atenciones", "ingresos", "alta_voluntario", "traslados", "defunciones"):
+        for k in (
+            "atenciones",
+            "ingresos",
+            "alta_voluntario",
+            "traslados",
+            "defunciones",
+        ):
             totales[k] += data[k]
         totales["eventualidades_count"] += data["eventualidades_count"]
 
@@ -1311,7 +1511,9 @@ def emergencias_resumen_pdf():
         generated_at=now_local(),
     )
 
-    filename = f"resumen_emergencias_{desde.strftime('%Y%m%d')}_{hasta.strftime('%Y%m%d')}.pdf"
+    filename = (
+        f"resumen_emergencias_{desde.strftime('%Y%m%d')}_{hasta.strftime('%Y%m%d')}.pdf"
+    )
     response = render_pdf_from_html(html, pdf_filename=filename)
 
     if chart_url:
@@ -1333,7 +1535,9 @@ def emergencias_resumen_pdf():
 @login_required
 @admin_required
 def hospitales_list():
-    hospitales = Hospital.query.order_by(Hospital.activo.desc(), Hospital.nombre.asc()).all()
+    hospitales = Hospital.query.order_by(
+        Hospital.activo.desc(), Hospital.nombre.asc()
+    ).all()
     return render_template("hosp_list.html", hospitales=hospitales)
 
 
@@ -1362,7 +1566,9 @@ def hospitales_nuevo():
             safe_name = secure_filename(logo_file.filename)
             save_path = os.path.join(UPLOAD_FOLDER_LOGOS, safe_name)
             logo_file.save(save_path)
-            logo_filename_db = os.path.join(LOGOS_SUBFOLDER, safe_name).replace("\\", "/")
+            logo_filename_db = os.path.join(LOGOS_SUBFOLDER, safe_name).replace(
+                "\\", "/"
+            )
 
         h = Hospital(nombre=nombre, activo=True, logo_filename=logo_filename_db)
         db.session.add(h)
@@ -1389,7 +1595,9 @@ def hospitales_editar(h_id):
             flash("El nombre es obligatorio.", "danger")
             return render_template("hosp_form.html", h=h)
 
-        existe = Hospital.query.filter(Hospital.id != h.id, Hospital.nombre == nombre).first()
+        existe = Hospital.query.filter(
+            Hospital.id != h.id, Hospital.nombre == nombre
+        ).first()
         if existe:
             flash("Ya existe otro hospital con ese nombre.", "danger")
             return render_template("hosp_form.html", h=h)
@@ -1408,7 +1616,9 @@ def hospitales_editar(h_id):
             safe_name = secure_filename(logo_file.filename)
             save_path = os.path.join(UPLOAD_FOLDER_LOGOS, safe_name)
             logo_file.save(save_path)
-            h.logo_filename = os.path.join(LOGOS_SUBFOLDER, safe_name).replace("\\", "/")
+            h.logo_filename = os.path.join(LOGOS_SUBFOLDER, safe_name).replace(
+                "\\", "/"
+            )
 
         db.session.commit()
         flash("Hospital actualizado.", "success")
@@ -1438,16 +1648,16 @@ def usuarios_list():
     q = User.query
     if current_user.is_admin:
         usuarios = q.order_by(
-            User.is_admin.desc(),
-            User.is_hospital_admin.desc(),
-            User.username.asc()
+            User.is_admin.desc(), User.is_hospital_admin.desc(), User.username.asc()
         ).all()
     else:
-        usuarios = q.filter(User.hospital == current_user.hospital).order_by(
-            User.is_admin.desc(),
-            User.is_hospital_admin.desc(),
-            User.username.asc()
-        ).all()
+        usuarios = (
+            q.filter(User.hospital == current_user.hospital)
+            .order_by(
+                User.is_admin.desc(), User.is_hospital_admin.desc(), User.username.asc()
+            )
+            .all()
+        )
 
     return render_template("users_list.html", usuarios=usuarios)
 
@@ -1493,10 +1703,14 @@ def usuarios_nuevo():
 
         if current_user.is_admin:
             is_admin = True if request.form.get("is_admin") == "on" else False
-            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
+            is_hosp_admin = (
+                True if request.form.get("is_hospital_admin") == "on" else False
+            )
         else:
             is_admin = False
-            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
+            is_hosp_admin = (
+                True if request.form.get("is_hospital_admin") == "on" else False
+            )
 
         u = User(
             username=username,
@@ -1539,10 +1753,14 @@ def usuarios_editar(u_id):
 
         if current_user.is_admin:
             is_admin = True if request.form.get("is_admin") == "on" else False
-            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
+            is_hosp_admin = (
+                True if request.form.get("is_hospital_admin") == "on" else False
+            )
         else:
             is_admin = u.is_admin
-            is_hosp_admin = True if request.form.get("is_hospital_admin") == "on" else False
+            is_hosp_admin = (
+                True if request.form.get("is_hospital_admin") == "on" else False
+            )
 
         if not username:
             flash("El nombre de usuario es obligatorio.", "danger")
@@ -1658,14 +1876,18 @@ def guardias_list():
             q = q.filter(GuardiaEmergencia.hospital == f_hospital)
             hospitales_scope = [f_hospital]
         else:
-            hospitales_scope = [h.nombre for h in Hospital.query.filter_by(activo=True).all()]
+            hospitales_scope = [
+                h.nombre for h in Hospital.query.filter_by(activo=True).all()
+            ]
 
     if d_desde:
         q = q.filter(GuardiaEmergencia.fecha >= d_desde)
     if d_hasta:
         q = q.filter(GuardiaEmergencia.fecha <= d_hasta)
 
-    guardias = q.order_by(GuardiaEmergencia.fecha.desc(), GuardiaEmergencia.id.desc()).all()
+    guardias = q.order_by(
+        GuardiaEmergencia.fecha.desc(), GuardiaEmergencia.id.desc()
+    ).all()
 
     def date_range(start: date, end: date):
         cur = start
@@ -1678,7 +1900,9 @@ def guardias_list():
 
     for hosp_name in hospitales_scope:
         fechas_con_guardia = {g.fecha for g in guardias if g.hospital == hosp_name}
-        faltantes = [d for d in date_range(d_desde, d_hasta) if d not in fechas_con_guardia]
+        faltantes = [
+            d for d in date_range(d_desde, d_hasta) if d not in fechas_con_guardia
+        ]
 
         if faltantes:
             pendientes_por_hospital[hosp_name] = faltantes
@@ -1689,7 +1913,9 @@ def guardias_list():
     if len(hospitales_scope) == 1:
         hname = hospitales_scope[0]
         if hname in pendientes_por_hospital:
-            pendiente_fechas = [d.strftime("%Y-%m-%d") for d in pendientes_por_hospital[hname]]
+            pendiente_fechas = [
+                d.strftime("%Y-%m-%d") for d in pendientes_por_hospital[hname]
+            ]
             pendiente_count = len(pendiente_fechas)
 
     return render_template(
@@ -1722,9 +1948,14 @@ def guardias_nuevo():
                 flash("Debe indicar un hospital.", "danger")
                 return render_template("guardias_form.html")
 
-            existe = GuardiaEmergencia.query.filter_by(fecha=fecha, hospital=hospital_nombre).first()
+            existe = GuardiaEmergencia.query.filter_by(
+                fecha=fecha, hospital=hospital_nombre
+            ).first()
             if existe:
-                flash("Ya existe una guardia registrada para esa fecha y hospital.", "danger")
+                flash(
+                    "Ya existe una guardia registrada para esa fecha y hospital.",
+                    "danger",
+                )
                 return redirect(url_for("guardias_editar", g_id=existe.id))
 
             def to_int(name):
@@ -1737,7 +1968,9 @@ def guardias_nuevo():
             g = GuardiaEmergencia(
                 fecha=fecha,
                 hospital=hospital_nombre,
-                medicos_emergencia=(request.form.get("medicos_emergencia") or "").strip(),
+                medicos_emergencia=(
+                    request.form.get("medicos_emergencia") or ""
+                ).strip(),
                 total_matutino=to_int("total_matutino"),
                 total_vespertino=to_int("total_vespertino"),
                 total_nocturno=to_int("total_nocturno"),
@@ -1752,7 +1985,7 @@ def guardias_nuevo():
                 referidos=to_int("referidos"),
                 eventualidades=(request.form.get("eventualidades") or "").strip(),
                 firma=(request.form.get("firma") or "").strip(),
-                created_by_id=current_user.id
+                created_by_id=current_user.id,
             )
 
             db.session.add(g)
@@ -1791,7 +2024,7 @@ def guardias_editar(g_id):
             dup = GuardiaEmergencia.query.filter(
                 GuardiaEmergencia.id != g.id,
                 GuardiaEmergencia.fecha == nueva_fecha,
-                GuardiaEmergencia.hospital == hospital_nombre
+                GuardiaEmergencia.hospital == hospital_nombre,
             ).first()
             if dup:
                 flash("Ya existe otra guardia para esa fecha y hospital.", "danger")
@@ -1808,7 +2041,9 @@ def guardias_editar(g_id):
 
             g.fecha = nueva_fecha
             g.hospital = hospital_nombre
-            g.medicos_emergencia = (request.form.get("medicos_emergencia") or "").strip()
+            g.medicos_emergencia = (
+                request.form.get("medicos_emergencia") or ""
+            ).strip()
             g.total_matutino = to_int("total_matutino", g.total_matutino)
             g.total_vespertino = to_int("total_vespertino", g.total_vespertino)
             g.total_nocturno = to_int("total_nocturno", g.total_nocturno)
@@ -1816,7 +2051,9 @@ def guardias_editar(g_id):
             g.pediatricos = to_int("pediatricos", g.pediatricos)
             g.ginecologicas = to_int("ginecologicas", g.ginecologicas)
             g.ingresados_total = to_int("ingresados_total", g.ingresados_total)
-            g.ingresados_en_emergencia = to_int("ingresados_en_emergencia", g.ingresados_en_emergencia)
+            g.ingresados_en_emergencia = to_int(
+                "ingresados_en_emergencia", g.ingresados_en_emergencia
+            )
             g.fallecidos = to_int("fallecidos", g.fallecidos)
             g.traidos_911 = to_int("traidos_911", g.traidos_911)
             g.de_cuidados = to_int("de_cuidados", g.de_cuidados)
@@ -1864,12 +2101,7 @@ def guardias_pdf(g_id):
         flash("No puedes ver guardias de otros hospitales.", "danger")
         return redirect(url_for("guardias_list"))
 
-    html = render_template(
-        "guardia_pdf.html",
-        g=g,
-        hosp=hosp,
-        generated_at=now_local()
-    )
+    html = render_template("guardia_pdf.html", g=g, hosp=hosp, generated_at=now_local())
     filename = f"guardia_{g.hospital.replace(' ', '_')}_{g.fecha.isoformat()}.pdf"
     return render_pdf_from_html(html, pdf_filename=filename)
 
@@ -1892,29 +2124,37 @@ def api_guardia_por_dia():
     if current_user.is_admin:
         hospital = (request.args.get("hospital") or "").strip()
         if not hospital:
-            return jsonify({"ok": False, "error": "Falta seleccionar el hospital."}), 400
+            return (
+                jsonify({"ok": False, "error": "Falta seleccionar el hospital."}),
+                400,
+            )
     else:
         hospital = current_user.hospital
 
     if not hospital:
-        return jsonify({"ok": False, "error": "El usuario no tiene hospital asignado."}), 400
+        return (
+            jsonify({"ok": False, "error": "El usuario no tiene hospital asignado."}),
+            400,
+        )
 
-    guardia = GuardiaEmergencia.query.filter_by(
-        fecha=fecha,
-        hospital=hospital
-    ).first()
+    guardia = GuardiaEmergencia.query.filter_by(fecha=fecha, hospital=hospital).first()
 
     if not guardia:
-        return jsonify({
-            "ok": True,
-            "found": False,
-            "message": "No hay guardia registrada para esa fecha en este hospital."
-        }), 200
+        return (
+            jsonify(
+                {
+                    "ok": True,
+                    "found": False,
+                    "message": "No hay guardia registrada para esa fecha en este hospital.",
+                }
+            ),
+            200,
+        )
 
     total_pacientes = (
-        (guardia.total_matutino or 0) +
-        (guardia.total_vespertino or 0) +
-        (guardia.total_nocturno or 0)
+        (guardia.total_matutino or 0)
+        + (guardia.total_vespertino or 0)
+        + (guardia.total_nocturno or 0)
     )
 
     data = {
@@ -1924,7 +2164,7 @@ def api_guardia_por_dia():
         "ingresos": guardia.ingresados_total or 0,
         "traslados": guardia.referidos or 0,
         "defunciones": guardia.fallecidos or 0,
-        "eventualidades": guardia.eventualidades or ""
+        "eventualidades": guardia.eventualidades or "",
     }
     return jsonify(data), 200
 
@@ -1989,12 +2229,11 @@ def internamientos_list():
             Internamiento.hospital.asc(),
             Internamiento.area.asc(),
             Internamiento.habitacion.asc(),
-            Internamiento.nombre_paciente.asc()
+            Internamiento.nombre_paciente.asc(),
         ).all()
     else:
         internamientos = q.order_by(
-            Internamiento.fecha.desc(),
-            Internamiento.id.desc()
+            Internamiento.fecha.desc(), Internamiento.id.desc()
         ).all()
 
     # --------- Totales por hospital (número de pacientes) ---------
@@ -2005,13 +2244,16 @@ def internamientos_list():
     return render_template(
         "internamientos_list.html",
         internamientos=internamientos,
-        rango_inicio=d_desde.strftime("%Y-%m-%d") if aplicar_filtro_fecha and d_desde else "",
-        rango_fin=d_hasta.strftime("%Y-%m-%d") if aplicar_filtro_fecha and d_hasta else "",
+        rango_inicio=(
+            d_desde.strftime("%Y-%m-%d") if aplicar_filtro_fecha and d_desde else ""
+        ),
+        rango_fin=(
+            d_hasta.strftime("%Y-%m-%d") if aplicar_filtro_fecha and d_hasta else ""
+        ),
         f_hospital=f_hospital,
         mostrar_egresados=mostrar_egresados,
         totales_por_hospital=totales_por_hospital,  # 👈 NUEVO
     )
-
 
 
 @app.route("/internamientos/nuevo", methods=["GET", "POST"])
@@ -2023,7 +2265,9 @@ def internamientos_nuevo():
             fecha = parser.parse(fecha_str).date() if fecha_str else today_local()
 
             if current_user.is_admin or current_user.is_hospital_admin:
-                hospital_nombre = (request.form.get("hospital") or current_user.hospital or "").strip()
+                hospital_nombre = (
+                    request.form.get("hospital") or current_user.hospital or ""
+                ).strip()
             else:
                 hospital_nombre = current_user.hospital
 
@@ -2062,7 +2306,7 @@ def internamientos_nuevo():
                 observaciones=(request.form.get("observaciones") or "").strip(),
                 egresado=True if request.form.get("egresado") == "on" else False,
                 dia_ingreso=dia_ingreso_val,
-                created_by_id=current_user.id
+                created_by_id=current_user.id,
             )
 
             db.session.add(ir)
@@ -2173,14 +2417,15 @@ def internamientos_pdf():
     if request.args.get("validar") == "1":
         fecha_str = request.args.get("fecha")
         try:
-            fecha_reporte = parser.parse(fecha_str).date() if fecha_str else today_local()
+            fecha_reporte = (
+                parser.parse(fecha_str).date() if fecha_str else today_local()
+            )
         except Exception:
             fecha_reporte = today_local()
 
         # Internamientos activos hasta la fecha del reporte
         q_val = Internamiento.query.filter(
-            Internamiento.egresado == False,
-            Internamiento.fecha <= fecha_reporte
+            Internamiento.egresado == False, Internamiento.fecha <= fecha_reporte
         )
 
         # Si hay hospital fijo (usuario normal o admin con filtro) se filtra
@@ -2191,7 +2436,9 @@ def internamientos_pdf():
 
         faltantes = []
         for i in activos:
-            ultima_actualizacion = i.fecha_actualizacion.date() if i.fecha_actualizacion else None
+            ultima_actualizacion = (
+                i.fecha_actualizacion.date() if i.fecha_actualizacion else None
+            )
             if not ultima_actualizacion or ultima_actualizacion != fecha_reporte:
                 item = {
                     "id": i.id,
@@ -2199,8 +2446,10 @@ def internamientos_pdf():
                     "area": i.area or "",
                     "habitacion": i.habitacion or "",
                     "ultima_actualizacion": (
-                        ultima_actualizacion.isoformat() if ultima_actualizacion else None
-                    )
+                        ultima_actualizacion.isoformat()
+                        if ultima_actualizacion
+                        else None
+                    ),
                 }
                 # Para admins, puede ser útil saber el hospital si es multi
                 if multi_hospital:
@@ -2219,7 +2468,9 @@ def internamientos_pdf():
     if request.args.get("generar") == "1":
         fecha_str = request.args.get("fecha")
         try:
-            fecha_reporte = parser.parse(fecha_str).date() if fecha_str else today_local()
+            fecha_reporte = (
+                parser.parse(fecha_str).date() if fecha_str else today_local()
+            )
         except Exception:
             fecha_reporte = today_local()
 
@@ -2245,25 +2496,26 @@ def internamientos_pdf():
                 Internamiento.hospital.asc(),
                 Internamiento.area.asc(),
                 Internamiento.habitacion.asc(),
-                Internamiento.nombre_paciente.asc()
+                Internamiento.nombre_paciente.asc(),
             ).all()
         else:
             internamientos = q.order_by(
                 Internamiento.area.asc(),
                 Internamiento.habitacion.asc(),
-                Internamiento.nombre_paciente.asc()
+                Internamiento.nombre_paciente.asc(),
             ).all()
 
         # ================== TOTALES POR HOSPITAL ==================
         totales_por_hospital = {}
         for i in internamientos:
-            totales_por_hospital[i.hospital] = totales_por_hospital.get(i.hospital, 0) + 1
+            totales_por_hospital[i.hospital] = (
+                totales_por_hospital.get(i.hospital, 0) + 1
+            )
         # ==========================================================
 
         # ================== NOTA AUTOMÁTICA DE NO ACTUALIZADOS ==================
         q_val = Internamiento.query.filter(
-            Internamiento.egresado == False,
-            Internamiento.fecha <= fecha_reporte
+            Internamiento.egresado == False, Internamiento.fecha <= fecha_reporte
         )
         if hospital_nombre:
             q_val = q_val.filter(Internamiento.hospital == hospital_nombre)
@@ -2272,7 +2524,9 @@ def internamientos_pdf():
 
         notas_auto = []
         for i in activos:
-            ultima_actualizacion = i.fecha_actualizacion.date() if i.fecha_actualizacion else None
+            ultima_actualizacion = (
+                i.fecha_actualizacion.date() if i.fecha_actualizacion else None
+            )
             if not ultima_actualizacion or ultima_actualizacion != fecha_reporte:
                 if ultima_actualizacion:
                     fecha_txt = ultima_actualizacion.strftime("%d/%m/%Y")
@@ -2294,7 +2548,9 @@ def internamientos_pdf():
                         f"– Última actualización: {fecha_txt}"
                     )
 
-        observaciones_generales = (request.args.get("observaciones_generales") or "").strip()
+        observaciones_generales = (
+            request.args.get("observaciones_generales") or ""
+        ).strip()
 
         if notas_auto:
             bloque = (
@@ -2303,7 +2559,9 @@ def internamientos_pdf():
                 + "\n".join(notas_auto)
             )
             if observaciones_generales:
-                observaciones_generales = observaciones_generales.rstrip() + "\n\n\n" + bloque
+                observaciones_generales = (
+                    observaciones_generales.rstrip() + "\n\n\n" + bloque
+                )
             else:
                 observaciones_generales = bloque
         # =======================================================================
@@ -2323,7 +2581,7 @@ def internamientos_pdf():
             fecha_reporte=fecha_reporte,
             generated_at=now_local(),
             mostrar_egresados=mostrar_egresados,
-            observaciones_generales=observaciones_generales
+            observaciones_generales=observaciones_generales,
         )
 
         safe_name = (hospital_nombre or "Todos_los_hospitales").replace(" ", "_")
@@ -2333,7 +2591,343 @@ def internamientos_pdf():
     return jsonify({"error": "Modo inválido"}), 400
 
 
+# =======================================================================
+# Calendario de Guardias
+# ======================================================================
+import calendar
+from models import GuardiaCalendarioMensual, User
 
+from datetime import date
+import calendar
+from models import GuardiaCalendarioMensual, User
+
+
+@app.route("/guardias/calendario")
+@login_required
+@hospital_admin_required
+def guardias_calendario():
+    try:
+        anio = int(request.args.get("anio", now_local().year))
+    except ValueError:
+        anio = now_local().year
+
+    try:
+        mes = int(request.args.get("mes", now_local().month))
+        if not (1 <= mes <= 12):
+            mes = now_local().month
+    except ValueError:
+        mes = now_local().month
+
+    hospital = current_user.hospital
+
+    medicos = User.query.filter_by(hospital=hospital).order_by(User.nombre.asc()).all()
+
+    # 🎨 Paleta de colores
+    palette = [
+        "#0d6efd",
+        "#198754",
+        "#ffc107",
+        "#dc3545",
+        "#20c997",
+        "#6f42c1",
+        "#fd7e14",
+        "#0dcaf0",
+        "#6c757d",
+    ]
+    color_map = {}
+    for idx, m in enumerate(medicos):
+        color_map[m.id] = palette[idx % len(palette)]
+
+    filas = GuardiaCalendarioMensual.query.filter_by(
+        hospital=hospital, anio=anio, mes=mes
+    ).all()
+
+    asignaciones = {f.medico_id: f for f in filas}
+    dias_por_medico = {f.medico_id: f.dias_list for f in filas}
+
+    # 👉 Conteo de días por médico para la leyenda
+    guardias_por_medico = {m_id: len(dias) for m_id, dias in dias_por_medico.items()}
+
+    cal = calendar.Calendar(firstweekday=0)
+    semanas = []
+
+    hoy = now_local().date()  # para resaltar hoy
+
+    for week in cal.monthdatescalendar(anio, mes):
+        fila = []
+        for d in week:
+            if d.month != mes:
+                fila.append(None)
+                continue
+
+            dia_num = d.day
+            medicos_dia = []
+            medicos_ids_dia = []
+            for m in medicos:
+                lista = dias_por_medico.get(m.id, [])
+                if dia_num in lista:
+                    medicos_dia.append(m)
+                    medicos_ids_dia.append(m.id)
+
+            fila.append(
+                {
+                    "fecha": d,
+                    "medicos": medicos_dia,
+                    "medicos_ids": medicos_ids_dia,
+                    "es_hoy": (d == hoy),
+                }
+            )
+        semanas.append(fila)
+
+    return render_template(
+        "guardias_calendario.html",
+        semanas=semanas,
+        medicos=medicos,
+        asignaciones=asignaciones,
+        color_map=color_map,
+        guardias_por_medico=guardias_por_medico,
+        anio=anio,
+        mes=mes,
+    )
+
+
+@app.route("/guardias/calendario/guardar-dia", methods=["POST"])
+@login_required
+@hospital_admin_required
+def guardar_guardias_dia():
+    hospital = current_user.hospital
+
+    try:
+        anio = int(request.form.get("anio", now_local().year))
+    except ValueError:
+        anio = now_local().year
+
+    try:
+        mes = int(request.form.get("mes", now_local().month))
+    except ValueError:
+        mes = now_local().month
+
+    try:
+        dia = int(request.form.get("dia"))
+    except (TypeError, ValueError):
+        flash("Día inválido.", "danger")
+        return redirect(url_for("guardias_calendario", anio=anio, mes=mes))
+
+    # IDs de médicos seleccionados para ese día
+    ids_str = request.form.getlist("medicos_ids")
+    try:
+        ids_seleccionados = {int(x) for x in ids_str}
+    except ValueError:
+        ids_seleccionados = set()
+
+    medicos = User.query.filter_by(hospital=hospital).all()
+
+    for m in medicos:
+        asign = GuardiaCalendarioMensual.query.filter_by(
+            hospital=hospital, medico_id=m.id, anio=anio, mes=mes
+        ).first()
+
+        if m.id in ids_seleccionados:
+            # Debe tener el día en su lista
+            if not asign:
+                asign = GuardiaCalendarioMensual(
+                    hospital=hospital, medico_id=m.id, anio=anio, mes=mes
+                )
+                db.session.add(asign)
+
+            lista = asign.dias_list
+            if dia not in lista:
+                lista.append(dia)
+            asign.dias_list = lista
+
+        else:
+            # NO debe tener este día
+            if asign:
+                lista = asign.dias_list
+                if dia in lista:
+                    lista = [d for d in lista if d != dia]
+                    if lista:
+                        asign.dias_list = lista
+                    else:
+                        db.session.delete(asign)
+
+    db.session.commit()
+    flash(f"Guardias del día {dia} actualizadas.", "success")
+    return redirect(url_for("guardias_calendario", anio=anio, mes=mes))
+
+
+@app.route("/guardias/calendario/guardar-medicos", methods=["POST"])
+@login_required
+@hospital_admin_required
+def guardar_guardias_medicos():
+    hospital = current_user.hospital
+
+    try:
+        anio = int(request.form.get("anio", now_local().year))
+    except ValueError:
+        anio = now_local().year
+
+    try:
+        mes = int(request.form.get("mes", now_local().month))
+    except ValueError:
+        mes = now_local().month
+
+    medicos = User.query.filter_by(hospital=hospital).order_by(User.nombre.asc()).all()
+
+    for m in medicos:
+        key = f"dias_{m.id}"
+        dias_str = (request.form.get(key) or "").strip()
+
+        # buscamos si ya existe registro ese mes para ese médico
+        asign = GuardiaCalendarioMensual.query.filter_by(
+            hospital=hospital, medico_id=m.id, anio=anio, mes=mes
+        ).first()
+
+        if not dias_str:
+            # si no escribió nada y existía, borrar asignación
+            if asign:
+                db.session.delete(asign)
+            continue
+
+        # parsear los días "1, 7, 13"
+        try:
+            lista_dias = [
+                int(x)
+                for x in dias_str.replace(" ", "").split(",")
+                if x.strip().isdigit()
+            ]
+        except ValueError:
+            lista_dias = []
+
+        if not lista_dias:
+            # nada válido
+            if asign:
+                db.session.delete(asign)
+            continue
+
+        if not asign:
+            asign = GuardiaCalendarioMensual(
+                hospital=hospital, medico_id=m.id, anio=anio, mes=mes
+            )
+            db.session.add(asign)
+
+        asign.dias_list = lista_dias  # usa el setter para formatear
+
+    db.session.commit()
+    flash("Programación de guardias por médico guardada.", "success")
+    return redirect(url_for("guardias_calendario", anio=anio, mes=mes))
+
+
+#================================================================================
+# PDF GUARDIAS POR MÉDICO (días de guardia)
+#================================================================================
+import calendar
+from flask import Response
+from models import GuardiaCalendarioMensual, User  # Hospital lo manejamos dentro con try/except
+
+@app.route("/guardias/calendario_pdf")
+@login_required
+def guardias_calendario_pdf():
+    """
+    PDF institucional de calendario de guardias:
+    Tabla por médico: nombre, días de guardia y total de guardias.
+    Solo se muestran médicos con guardias asignadas.
+    Ordenados por el primer día de guardia.
+    """
+    hoy = today_local()
+
+    # Año y mes
+    try:
+        anio = int(request.args.get("anio", hoy.year))
+    except ValueError:
+        anio = hoy.year
+
+    try:
+        mes = int(request.args.get("mes", hoy.month))
+        if not (1 <= mes <= 12):
+            mes = hoy.month
+    except ValueError:
+        mes = hoy.month
+
+    # Hospital según scope / usuario
+    scope_hosp = user_hospital_scope()  # mismo helper que usas en dashboard
+    if scope_hosp:
+        hospital = scope_hosp
+    else:
+        hospital = current_user.hospital
+
+    # Intentar obtener objeto Hospital para el logo (si existe el modelo)
+    hosp = None
+    try:
+        from models import Hospital
+        hosp = Hospital.query.filter_by(nombre=hospital).first()
+    except Exception:
+        hosp = None
+
+    # Médicos de ese hospital
+    medicos = (
+        User.query
+        .filter_by(hospital=hospital)
+        .order_by(User.nombre.asc())
+        .all()
+    )
+
+    # Asignaciones de guardias para ese mes
+    filas = GuardiaCalendarioMensual.query.filter_by(
+        hospital=hospital,
+        anio=anio,
+        mes=mes,
+    ).all()
+
+    asign_por_medico = {f.medico_id: f for f in filas}
+
+    # Construimos filas por médico
+    medicos_rows = []
+    for m in medicos:
+        asign = asign_por_medico.get(m.id)
+        dias_list = asign.dias_list if asign else []
+
+        dias_list_sorted = sorted(dias_list)
+        total_guardias = len(dias_list_sorted)
+
+        # Solo médicos con guardias asignadas
+        if total_guardias == 0:
+            continue
+
+        dias_str = ", ".join(str(d) for d in dias_list_sorted)
+
+        medicos_rows.append({
+            "medico": m,
+            "dias_str": dias_str,
+            "total": total_guardias,
+        })
+
+    # Ordenar por el primer día de guardia
+    def primer_dia(row):
+        dias = [int(x.strip()) for x in row["dias_str"].split(",") if x.strip().isdigit()]
+        return min(dias) if dias else 999
+
+    medicos_rows.sort(key=primer_dia)
+
+    # Etiqueta de mes
+    meses_es = [
+        "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+        "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+    ]
+    mes_label = f"{meses_es[mes - 1]} {anio}"
+
+    html = render_template(
+        "guardias_calendario_pdf.html",
+        hospital=hospital,
+        hosp=hosp,
+        mes_label=mes_label,
+        medicos_rows=medicos_rows,
+        generated_at=now_local(),
+    )
+
+    filename = f"guardias_calendario_{anio}{mes:02d}.pdf"
+    response = render_pdf_from_html(html, pdf_filename=filename)
+    return response
 
 
 # ======================================================================
@@ -2341,7 +2935,9 @@ def internamientos_pdf():
 # ======================================================================
 @app.route("/manifest.webmanifest")
 def manifest():
-    return send_from_directory("static", "manifest.webmanifest", mimetype="application/manifest+json")
+    return send_from_directory(
+        "static", "manifest.webmanifest", mimetype="application/manifest+json"
+    )
 
 
 @app.route("/sw.js")

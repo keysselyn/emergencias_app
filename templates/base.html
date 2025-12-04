@@ -187,9 +187,9 @@
     <nav class="bottom-nav">
       <!-- Inicio -->
       <a href="/"
-         class="{% if request.path == '/' %}active{% endif %}">
-        <i class="bi bi-house-fill fs-5"></i>
-        <span>Inicio</span>
+         class="{% if request.path == '/dashboard' %}active{% endif %}">
+        <i class="bi bi-graph-up fs-5"></i>
+        <span>Dashboard</span>
       </a>
 
       <!-- Guardias de emergencia -->
@@ -207,19 +207,25 @@
       </a>
 
       
-      <!-- Dashboard -->
-      <a href="/dashboard"
-         class="{% if request.path.startswith('/dashboard') %}active{% endif %}">
-        <i class="bi bi-graph-up fs-5"></i>
-        <span>Dashboard</span>
-      </a>
+{% if current_user.is_admin or current_user.is_hospital_admin %}
+  <a href="{{ url_for('listar') }}"
+     class="{% if request.path.startswith('/listar') %}active{% endif %}">
+    <i class="bi bi-hospital fs-5"></i>
+    <span>Registro Diario</span>
+  </a>
+{% else %}
+  <a class="disabled text-muted" style="pointer-events:none; opacity:0.5;">
+    <i class="bi bi-hospital fs-5"></i>
+    <span>Registro Diario</span>
+  </a>
+{% endif %}
+
 
       <!-- Más (dropup con opciones según rol) -->
       <div class="dropup flex-fill text-center">
         <a class="nav-link dropdown-toggle
                   {% if request.path.startswith('/hospitales')
                         or request.path.startswith('/usuarios')
-                        or request.path.startswith('/listar')
                         or request.path.startswith('/perfil')
                         or request.path.startswith('/offline') %}active{% endif %}"
            href="#"
@@ -246,12 +252,6 @@
               </li>
               <li class="dropdown-header small text-muted">
                 Administración general
-              </li>
-
-              <li>
-                <a class="dropdown-item" href="{{ url_for('listar') }}">
-                  <i class="bi bi-hospital me-2"></i> Registros
-                </a>
               </li>
 
 

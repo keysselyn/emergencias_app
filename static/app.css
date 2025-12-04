@@ -332,3 +332,78 @@ html, body {
 
 
 
+@media (max-width: 768px) {
+  table.table.calendar-table-mobile {
+    display: table !important;
+  }
+}
+@media (max-width: 768px) {
+  .mobile-list table.table { 
+    display: none;
+  }
+}
+
+.modal-content table.table { display: table !important; }
+
+
+
+/* CUADROS DEL CALENDARIO MÓVIL */
+.calendar-table-mobile td.day-box {
+  height: 55px;
+  border-radius: 10px;
+  cursor: pointer;
+  position: relative;
+  vertical-align: top;
+  text-align: left;
+  padding: 6px !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.calendar-table-mobile td.day-box.empty {
+  background: transparent !important;
+  cursor: default;
+}
+
+.legend-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+/* Leyenda organizada en columnas flexibles */
+.legend-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding-top: 4px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+/* Resaltar el día de hoy en el calendario */
+.calendar-table td.day-today {
+  box-shadow: 0 0 0 2px #ffc107 inset;
+}
+
+.calendar-table-mobile td.day-box.today {
+  outline: 2px solid #ffc107;
+  outline-offset: -2px;
+}
+
+

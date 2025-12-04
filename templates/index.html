@@ -7,7 +7,7 @@
 
     <div class="d-flex align-items-center mb-3">
       <div class="me-3 rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-           style="width:48px;height:48px;">
+        style="width:48px;height:48px;">
         <i class="bi bi-activity text-primary fs-3"></i>
       </div>
       <div>
@@ -18,92 +18,69 @@
 
     {% if current_user.is_authenticated %}
 
-      <p class="text-muted mb-3">
-        Bienvenido, <strong>{{ current_user.nombre or current_user.username }}</strong>.  
-        Desde aquí puedes gestionar las guardias médicas e internamientos de tu hospital.
-      </p>
+    <p class="text-muted mb-3">
+      Bienvenido, <strong>{{ current_user.nombre or current_user.username }}</strong>.
+      Desde aquí puedes gestionar las guardias médicas e internamientos de tu hospital.
+    </p>
 
-      <!-- ➤ KPIs rápidos -->
-      <div class="row g-2 mb-3">
-        <div class="col-12 col-md-4">
-          <div class="kpi-chip d-flex align-items-center">
-            <span class="kpi-dot bg-primary me-2"></span>
-            <span class="small text-muted">Guardias registradas hoy</span>
-            <strong class="ms-auto">{{ kpi_guardias_hoy }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-md-4">
-          <div class="kpi-chip d-flex align-items-center">
-            <span class="kpi-dot bg-success me-2"></span>
-            <span class="small text-muted">Internamientos activos</span>
-            <strong class="ms-auto">{{ kpi_internamientos_activos }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-md-4">
-          <div class="kpi-chip d-flex align-items-center">
-            <span class="kpi-dot bg-warning me-2"></span>
-            <span class="small text-muted">Egresos registrados hoy</span>
-            <strong class="ms-auto">{{ kpi_internamientos_egresados_hoy }}</strong>
-          </div>
-        </div>
-      </div>
+    
 
-      <!-- ACCIONES PRINCIPALES -->
-      <div class="d-grid gap-2 mb-4">
+    <!-- ACCIONES PRINCIPALES -->
+    <div class="d-grid gap-2 mb-4">
 
-        <!-- Guardias -->
-        <a class="btn btn-primary btn-lg" href="{{ url_for('guardias_list') }}">
-          <i class="bi bi-file-medical me-2"></i>
-          Gestión de Guardias de Emergencia
-        </a>
+      <!-- Guardias -->
+      <a class="btn btn-primary btn-lg" href="{{ url_for('guardias_list') }}">
+        <i class="bi bi-file-medical me-2"></i>
+        Gestión de Guardias de Emergencia
+      </a>
 
-        <!-- Internamientos -->
-        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('internamientos_list') }}">
-          <i class="bi bi-hospital-fill me-2"></i>
-          Gestión de Internamientos
-        </a>
+      <!-- Internamientos -->
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('internamientos_list') }}">
+        <i class="bi bi-hospital-fill me-2"></i>
+        Gestión de Internamientos
+      </a>
 
-        <!-- Dashboard -->
-        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('dashboard') }}">
-          <i class="bi bi-graph-up-arrow me-2"></i>
-          Ver Dashboard General
-        </a>
+      <!-- Dashboard -->
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('dashboard') }}">
+        <i class="bi bi-graph-up-arrow me-2"></i>
+        Ver Dashboard General
+      </a>
 
-      </div>
+    </div>
 
-      <!-- Exportaciones: SOLO admin general o admin hospital -->
-      {% if current_user.is_admin or current_user.is_hospital_admin %}
-      <div class="d-flex flex-wrap gap-2 mb-3">
-        <a class="btn btn-sm btn-outline-success" href="{{ url_for('exportar_excel') }}">
-          <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel (registros de emergencias)
-        </a>
-        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('exportar_csv') }}">
-          <i class="bi bi-filetype-csv me-1"></i> Exportar CSV
-        </a>
-      </div>
-      {% endif %}
+    <!-- Exportaciones: SOLO admin general o admin hospital -->
+    {% if current_user.is_admin or current_user.is_hospital_admin %}
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('exportar_excel') }}">
+        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel (registros de emergencias)
+      </a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('exportar_csv') }}">
+        <i class="bi bi-filetype-csv me-1"></i> Exportar CSV
+      </a>
+    </div>
+    {% endif %}
 
-      <!-- PWA -->
-      <button id="btnInstall" class="btn btn-sm btn-outline-primary" style="display:none;">
-        <i class="bi bi-phone me-1"></i> Instalar app en este dispositivo
-      </button>
+    <!-- PWA -->
+    <button id="btnInstall" class="btn btn-sm btn-outline-primary" style="display:none;">
+      <i class="bi bi-phone me-1"></i> Instalar app en este dispositivo
+    </button>
 
     {% else %}
 
-      <p class="mb-3 text-muted">
-        Este sistema permite gestionar guardias médicas, internamientos y visualizar indicadores
-        hospitalarios para la Red SRS Valdesia.
-      </p>
+    <p class="mb-3 text-muted">
+      Este sistema permite gestionar guardias médicas, internamientos y visualizar indicadores
+      hospitalarios para la Red SRS Valdesia.
+    </p>
 
-      <div class="d-grid">
-        <a class="btn btn-primary btn-lg" href="{{ url_for('login') }}">
-          <i class="bi bi-box-arrow-in-right me-2"></i> Iniciar sesión
-        </a>
-      </div>
+    <div class="d-grid">
+      <a class="btn btn-primary btn-lg" href="{{ url_for('login') }}">
+        <i class="bi bi-box-arrow-in-right me-2"></i> Iniciar sesión
+      </a>
+    </div>
 
-      <small class="text-muted d-block mt-3">
-        Si no tienes usuario, solicita acceso al administrador regional.
-      </small>
+    <small class="text-muted d-block mt-3">
+      Si no tienes usuario, solicita acceso al administrador regional.
+    </small>
 
     {% endif %}
   </div>
@@ -112,86 +89,91 @@
 
 {% if current_user.is_authenticated %}
 
-  <!-- ACCESOS RÁPIDOS (tipo app) -->
-  <div class="row g-3 mb-4">
+<!-- ACCESOS RÁPIDOS (tipo app) -->
+<div class="row g-3 mb-4">
 
-    <!-- Guardias -->
-    <div class="col-12 col-md-6">
-      <div class="card h-100 shadow-sm border-0">
-        <div class="card-body d-flex">
-          <div class="me-3 d-flex align-items-start">
-            <span class="badge bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center"
-                  style="width:32px;height:32px;">
-              <i class="bi bi-file-medical"></i>
-            </span>
-          </div>
-          <div class="flex-grow-1">
-            <h6 class="mb-1">Guardias de emergencia</h6>
-            <p class="text-muted small mb-2">Ver o registrar la guardia del día.</p>
-            <a href="{{ url_for('guardias_list') }}"
-               class="btn btn-sm btn-outline-primary">Ir a guardias</a>
-          </div>
+  <!-- Guardias -->
+  <div class="col-12 col-md-6">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body d-flex">
+        <div class="me-3 d-flex align-items-start">
+          <span
+            class="badge bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center"
+            style="width:32px;height:32px;">
+            <i class="bi bi-file-medical"></i>
+          </span>
+        </div>
+        <div class="flex-grow-1">
+          <h6 class="mb-1">Guardias de emergencia</h6>
+          <p class="text-muted small mb-2">Ver o registrar la guardia del día.</p>
+          <a href="{{ url_for('guardias_list') }}" class="btn btn-sm btn-outline-primary">Ir a guardias</a>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Internamientos -->
-    <div class="col-12 col-md-6">
-      <div class="card h-100 shadow-sm border-0">
-        <div class="card-body d-flex">
-          <div class="me-3 d-flex align-items-start">
-            <span class="badge bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center"
-                  style="width:32px;height:32px;">
-              <i class="bi bi-hospital"></i>
-            </span>
-          </div>
-          <div class="flex-grow-1">
-            <h6 class="mb-1">Internamientos</h6>
-            <p class="text-muted small mb-2">
-              Gestiona pacientes ingresados, egresos y actualizaciones diarias.
-            </p>
-            <a href="{{ url_for('internamientos_list') }}"
-               class="btn btn-sm btn-outline-success">Ir a internamientos</a>
-          </div>
+  <!-- Internamientos -->
+  <div class="col-12 col-md-6">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body d-flex">
+        <div class="me-3 d-flex align-items-start">
+          <span
+            class="badge bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center"
+            style="width:32px;height:32px;">
+            <i class="bi bi-hospital"></i>
+          </span>
+        </div>
+        <div class="flex-grow-1">
+          <h6 class="mb-1">Internamientos</h6>
+          <p class="text-muted small mb-2">
+            Gestiona pacientes ingresados, egresos y actualizaciones diarias.
+          </p>
+          <a href="{{ url_for('internamientos_list') }}" class="btn btn-sm btn-outline-success">Ir a internamientos</a>
         </div>
       </div>
     </div>
-
   </div>
 
-  {% if current_user.is_admin or current_user.is_hospital_admin %}
-  <!-- ZONA ADMIN -->
-  <div class="card shadow-sm border-0">
-    <div class="card-body">
+</div>
 
-      <div class="d-flex align-items-center mb-2">
-        <span class="badge bg-dark-subtle text-dark me-2">
-          <i class="bi bi-shield-lock me-1"></i> Administrador
-        </span>
-        <h6 class="mb-0">Gestión administrativa</h6>
-      </div>
+{% if current_user.is_admin or current_user.is_hospital_admin %}
+<!-- ZONA ADMIN -->
+<div class="card shadow-sm border-0">
+  <div class="card-body">
 
-      <p class="small text-muted mb-3">
-        Administra usuarios y registros del sistema.
-      </p>
+    <div class="d-flex align-items-center mb-2">
+      <span class="badge bg-dark-subtle text-dark me-2">
+        <i class="bi bi-shield-lock me-1"></i> Administrador
+      </span>
+      <h6 class="mb-0">Gestión administrativa</h6>
+    </div>
 
-      <div class="d-flex flex-wrap gap-2">
-        <a href="{{ url_for('listar') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-hospital me-1"></i> Registro
-        </a>
-{% if current_user.is_admin %}
-        <a href="{{ url_for('hospitales_list') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-hospital me-1"></i> Hospitales
-        </a>
- {% endif %}
-        <a href="{{ url_for('usuarios_list') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-people me-1"></i> Usuarios
-        </a>
-      </div>
+    <p class="small text-muted mb-3">
+      Administra usuarios y registros del sistema.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('listar') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-hospital me-1"></i> Registro
+      </a>
+      {% if current_user.is_admin %}
+      <a href="{{ url_for('hospitales_list') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-hospital me-1"></i> Hospitales
+      </a>
+
+      {% endif %}
+      <a href="{{ url_for('usuarios_list') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-people me-1"></i> Usuarios
+      </a>
+      <a href="{{ url_for('guardias_calendario') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-calendar3 me-1"></i> Distribución de guardias
+      </a>
 
     </div>
+
   </div>
-  {% endif %}
+</div>
+{% endif %}
 
 {% endif %}
 

@@ -4,7 +4,7 @@
 <!-- Card principal encabezado -->
 <div class="card shadow-sm mb-3">
   <div class="card-body">
-   
+
     <div class="d-flex align-items-center justify-content-between mb-2">
       <div>
         <h5 class="card-title mb-0">Registros de emergencias</h5>
@@ -12,59 +12,64 @@
           Listado diario de salas de emergencias – Red SRS Valdesia
         </small>
       </div>
-      <button class="btn btn-outline-secondary btn-sm d-md-inline-flex"
-              data-bs-toggle="offcanvas" data-bs-target="#filters">
+      <button class="btn btn-outline-secondary btn-sm d-md-inline-flex" data-bs-toggle="offcanvas"
+        data-bs-target="#filters">
         <i class="bi bi-funnel"></i>
       </button>
     </div>
 
     <!-- Resumen simple -->
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-<span class="badge bg-primary-subtle text-primary">
-  <i class="bi bi-list-ul me-1"></i>
- {{ total_registros }} registro(s) en total
-</span>
+      <span class="badge bg-primary-subtle text-primary">
+        <i class="bi bi-list-ul me-1"></i>
+        {{ total_registros }} registro(s) en total
+      </span>
       {% if current_user.is_admin and request.args.get('hospital') %}
-        <span class="badge bg-secondary-subtle text-secondary">
-          <i class="bi bi-hospital me-1"></i> {{ request.args.get('hospital') }}
-        </span>
+      <span class="badge bg-secondary-subtle text-secondary">
+        <i class="bi bi-hospital me-1"></i> {{ request.args.get('hospital') }}
+      </span>
       {% elif not current_user.is_admin %}
-        <span class="badge bg-secondary-subtle text-secondary">
-          <i class="bi bi-hospital me-1"></i> {{ current_user.hospital }}
-        </span>
+      <span class="badge bg-secondary-subtle text-secondary">
+        <i class="bi bi-hospital me-1"></i> {{ current_user.hospital }}
+      </span>
       {% endif %}
       {% if request.args.get('desde') or request.args.get('hasta') %}
-        <span class="badge bg-info-subtle text-info">
-          <i class="bi bi-calendar3 me-1"></i>
-          {{ request.args.get('desde') or 'Desde inicio' }} – {{ request.args.get('hasta') or 'Hoy' }}
-        </span>
+      <span class="badge bg-info-subtle text-info">
+        <i class="bi bi-calendar3 me-1"></i>
+        {{ request.args.get('desde') or 'Desde inicio' }} – {{ request.args.get('hasta') or 'Hoy' }}
+      </span>
       {% endif %}
     </div>
 
+    <!-- Acciones principales -->
     <!-- Acciones principales -->
     <div class="d-flex flex-wrap gap-2 mb-2">
       <a class="btn btn-primary btn-sm" href="{{ url_for('nuevo') }}">
         <i class="bi bi-plus-lg me-1"></i> Nuevo registro
       </a>
 
-      <a class="btn btn-outline-success btn-sm"
-         href="{{ url_for('exportar_excel',
-                          hospital=request.args.get('hospital',''),
-                          desde=request.args.get('desde',''),
-                          hasta=request.args.get('hasta','')) }}">
+      <a class="btn btn-outline-success btn-sm" href="{{ url_for('exportar_excel',
+                      hospital=request.args.get('hospital',''),
+                      desde=request.args.get('desde',''),
+                      hasta=request.args.get('hasta','')) }}">
         <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
       </a>
 
-      <a class="btn btn-outline-secondary btn-sm"
-         href="{{ url_for('exportar_csv',
-                          hospital=request.args.get('hospital',''),
-                          desde=request.args.get('desde',''),
-                          hasta=request.args.get('hasta','')) }}">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('exportar_csv',
+                      hospital=request.args.get('hospital',''),
+                      desde=request.args.get('desde',''),
+                      hasta=request.args.get('hasta','')) }}">
         <i class="bi bi-filetype-csv me-1"></i> Exportar CSV
       </a>
 
-      
+      <!-- NUEVO: PDF resumen (diario / rango según filtros) -->
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('emergencias_resumen_pdf',
+                      desde=request.args.get('desde',''),
+                      hasta=request.args.get('hasta','')) }}" target="_blank">
+        <i class="bi bi-file-earmark-pdf me-1"></i> PDF Resumen
+      </a>
     </div>
+
   </div>
 </div>
 
@@ -72,58 +77,56 @@
 <!-- Tarjetas móviles (solo en pantallas pequeñas) -->
 <div class="mobile-list d-block d-md-none mb-3">
   {% if registros %}
-    {% for r in registros %}
-      <div class="mcard">
-        <div class="mrow">
-          <span class="mkey">Fecha</span>
-          <span class="mval">{{ r.fecha.strftime('%Y-%m-%d') }}</span>
-        </div>
-        <div class="mrow">
-          <span class="mkey">Hospital</span>
-          <span class="mval">{{ r.hospital }}</span>
-        </div>
-        <div class="mrow">
-          <span class="mkey">Atenciones</span>
-          <span class="mval">{{ r.atenciones }}</span>
-        </div>
-        <div class="mrow">
-          <span class="mkey">Ingresos</span>
-          <span class="mval">{{ r.ingresos }}</span>
-        </div>
-        <div class="mrow">
-          <span class="mkey">Traslados</span>
-          <span class="mval">{{ r.traslados }}</span>
-        </div>
-
-        {% if r.eventualidades %}
-          <div class="mrow">
-            <span class="mkey">Eventualidades</span>
-            <span class="mval">{{ r.eventualidades }}</span>
-          </div>
-        {% endif %}
-
-        <div class="mt-3 d-flex justify-content-end gap-2">
-          <a href="{{ url_for('editar', rec_id=r.id) }}"
-             class="btn btn-sm btn-outline-primary">
-            <i class="bi bi-pencil-square"></i> Editar
-          </a>
-
-          {% if current_user.is_admin %}
-            <form action="{{ url_for('eliminar', rec_id=r.id) }}"
-                  method="POST"
-                  onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
-              <button type="submit" class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-trash"></i>
-              </button>
-            </form>
-          {% endif %}
-        </div>
-      </div>
-    {% endfor %}
-  {% else %}
-    <div class="text-center text-muted py-4">
-      <i class="bi bi-inbox"></i> Sin registros
+  {% for r in registros %}
+  <div class="mcard">
+    <div class="mrow">
+      <span class="mkey">Fecha</span>
+      <span class="mval">{{ r.fecha.strftime('%Y-%m-%d') }}</span>
     </div>
+    <div class="mrow">
+      <span class="mkey">Hospital</span>
+      <span class="mval">{{ r.hospital }}</span>
+    </div>
+    <div class="mrow">
+      <span class="mkey">Atenciones</span>
+      <span class="mval">{{ r.atenciones }}</span>
+    </div>
+    <div class="mrow">
+      <span class="mkey">Ingresos</span>
+      <span class="mval">{{ r.ingresos }}</span>
+    </div>
+    <div class="mrow">
+      <span class="mkey">Traslados</span>
+      <span class="mval">{{ r.traslados }}</span>
+    </div>
+
+    {% if r.eventualidades %}
+    <div class="mrow">
+      <span class="mkey">Eventualidades</span>
+      <span class="mval">{{ r.eventualidades }}</span>
+    </div>
+    {% endif %}
+
+    <div class="mt-3 d-flex justify-content-end gap-2">
+      <a href="{{ url_for('editar', rec_id=r.id) }}" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-pencil-square"></i> Editar
+      </a>
+
+      {% if current_user.is_admin %}
+      <form action="{{ url_for('eliminar', rec_id=r.id) }}" method="POST"
+        onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
+        <button type="submit" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-trash"></i>
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="text-center text-muted py-4">
+    <i class="bi bi-inbox"></i> Sin registros
+  </div>
   {% endif %}
 </div>
 
@@ -162,27 +165,25 @@
           {{ r.eventualidades or '' }}
         </td>
         <td> {% if r.created_by %}
-        {{ r.created_by.nombre }} {{ r.created_by.apellido }}
-    {% else %}
-        —
-    {% endif %}
+          {{ r.created_by.nombre }} {{ r.created_by.apellido }}
+          {% else %}
+          —
+          {% endif %}
         </td>
         <td class="table-actions">
-    <a href="{{ url_for('editar', rec_id=r.id) }}"
-       class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-pencil-square"></i>
-    </a>
+          <a href="{{ url_for('editar', rec_id=r.id) }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil-square"></i>
+          </a>
 
-    {% if current_user.is_admin %}
-    <form action="{{ url_for('eliminar', rec_id=r.id) }}"
-          method="POST"
-          onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
-      <button type="submit" class="btn btn-outline-danger btn-sm">
-        <i class="bi bi-trash"></i>
-      </button>
-    </form>
-    {% endif %}
-</td>
+          {% if current_user.is_admin %}
+          <form action="{{ url_for('eliminar', rec_id=r.id) }}" method="POST"
+            onsubmit="return confirm('¿Seguro que deseas eliminar este registro?');">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -192,71 +193,66 @@
 
 {% if pages and pages > 1 %}
 
-  {# ========= PAGINACIÓN ESCRITORIO (md+) ========= #}
-  <nav class="mt-3 d-none d-md-block" aria-label="Paginación">
-    <div class="d-flex justify-content-end mb-1">
-      <div class="text-muted small me-3">
-        Página <strong>{{ page }}</strong> de <strong>{{ pages }}</strong> · {{ total_registros }} registro(s)
-      </div>
+{# ========= PAGINACIÓN ESCRITORIO (md+) ========= #}
+<nav class="mt-3 d-none d-md-block" aria-label="Paginación">
+  <div class="d-flex justify-content-end mb-1">
+    <div class="text-muted small me-3">
+      Página <strong>{{ page }}</strong> de <strong>{{ pages }}</strong> · {{ total_registros }} registro(s)
     </div>
+  </div>
 
-    <ul class="pagination pagination-sm justify-content-end flex-wrap gap-1">
+  <ul class="pagination pagination-sm justify-content-end flex-wrap gap-1">
 
-      <!-- PRIMERA -->
-      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-        <a class="page-link rounded-pill shadow-sm border-0 px-3"
-           href="{{ url_for('listar', page=1,
+    <!-- PRIMERA -->
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link rounded-pill shadow-sm border-0 px-3" href="{{ url_for('listar', page=1,
                             hospital=request.args.get('hospital',''),
                             desde=request.args.get('desde',''),
                             hasta=request.args.get('hasta','')) }}">
-          <i class="bi bi-chevron-double-left"></i>
-        </a>
-      </li>
+        <i class="bi bi-chevron-double-left"></i>
+      </a>
+    </li>
 
-      <!-- ANTERIOR -->
-      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-        <a class="page-link rounded-pill shadow-sm border-0 px-3"
-           href="{{ url_for('listar', page=page-1 if page>1 else 1,
+    <!-- ANTERIOR -->
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link rounded-pill shadow-sm border-0 px-3" href="{{ url_for('listar', page=page-1 if page>1 else 1,
                             hospital=request.args.get('hospital',''),
                             desde=request.args.get('desde',''),
                             hasta=request.args.get('hasta','')) }}">
-          <i class="bi bi-chevron-left"></i>
-        </a>
+        <i class="bi bi-chevron-left"></i>
+      </a>
+    </li>
+
+    <!-- NÚMEROS -->
+    {% set window = 1 %}
+    {% set ns = namespace(last_shown=0) %}
+
+    {% for p in range(1, pages + 1) %}
+    {% if p == 1 or p == pages or (p >= page - window and p <= page + window) %} {% if ns.last_shown + 1 < p %} <li
+      class="page-item disabled">
+      <span class="page-link rounded-pill border-0 px-3 text-muted">…</span>
       </li>
+      {% endif %}
 
-      <!-- NÚMEROS -->
-      {% set window = 1 %}
-      {% set ns = namespace(last_shown=0) %}
-
-      {% for p in range(1, pages + 1) %}
-        {% if p == 1 or p == pages or (p >= page - window and p <= page + window) %}
-          
-          {% if ns.last_shown + 1 < p %}
-            <li class="page-item disabled">
-              <span class="page-link rounded-pill border-0 px-3 text-muted">…</span>
-            </li>
-          {% endif %}
-
-          <li class="page-item {% if p == page %}active{% endif %}">
-            <a class="page-link rounded-pill border-0 px-3 
+      <li class="page-item {% if p == page %}active{% endif %}">
+        <a class="page-link rounded-pill border-0 px-3 
                       {% if p == page %}fw-semibold shadow-sm bg-primary text-white{% else %}shadow-sm{% endif %}"
-               href="{{ url_for('listar', page=p,
+          href="{{ url_for('listar', page=p,
                                 hospital=request.args.get('hospital',''),
                                 desde=request.args.get('desde',''),
                                 hasta=request.args.get('hasta','')) }}">
-              {{ p }}
-            </a>
-          </li>
+          {{ p }}
+        </a>
+      </li>
 
-          {% set ns.last_shown = p %}
+      {% set ns.last_shown = p %}
 
-        {% endif %}
+      {% endif %}
       {% endfor %}
 
       <!-- SIGUIENTE -->
       <li class="page-item {% if page >= pages %}disabled{% endif %}">
-        <a class="page-link rounded-pill shadow-sm border-0 px-3"
-           href="{{ url_for('listar', page=page+1 if page<pages else pages,
+        <a class="page-link rounded-pill shadow-sm border-0 px-3" href="{{ url_for('listar', page=page+1 if page<pages else pages,
                             hospital=request.args.get('hospital',''),
                             desde=request.args.get('desde',''),
                             hasta=request.args.get('hasta','')) }}">
@@ -266,8 +262,7 @@
 
       <!-- ÚLTIMA -->
       <li class="page-item {% if page >= pages %}disabled{% endif %}">
-        <a class="page-link rounded-pill shadow-sm border-0 px-3"
-           href="{{ url_for('listar', page=pages,
+        <a class="page-link rounded-pill shadow-sm border-0 px-3" href="{{ url_for('listar', page=pages,
                             hospital=request.args.get('hospital',''),
                             desde=request.args.get('desde',''),
                             hasta=request.args.get('hasta','')) }}">
@@ -275,43 +270,41 @@
         </a>
       </li>
 
-    </ul>
-  </nav>
+  </ul>
+</nav>
 
 
-  {# ========= PAGINACIÓN MÓVIL (xs–sm) ========= #}
-  <nav class="mt-3 d-block d-md-none" aria-label="Paginación móvil">
+{# ========= PAGINACIÓN MÓVIL (xs–sm) ========= #}
+<nav class="mt-3 d-block d-md-none" aria-label="Paginación móvil">
 
-    <div class="d-flex justify-content-start mb-1">
-      <span class="text-muted small">
-        Página <strong>{{ page }}</strong> / <strong>{{ pages }}</strong>
-      </span>
-    </div>
+  <div class="d-flex justify-content-start mb-1">
+    <span class="text-muted small">
+      Página <strong>{{ page }}</strong> / <strong>{{ pages }}</strong>
+    </span>
+  </div>
 
-    <div class="d-flex justify-content-start gap-2">
+  <div class="d-flex justify-content-start gap-2">
 
-      <!-- ANTERIOR -->
-      <a class="btn btn-light border rounded-pill px-3 shadow-sm {% if page <= 1 %}disabled{% endif %}"
-         href="{{ url_for('listar',
+    <!-- ANTERIOR -->
+    <a class="btn btn-light border rounded-pill px-3 shadow-sm {% if page <= 1 %}disabled{% endif %}" href="{{ url_for('listar',
                           page=page-1 if page>1 else 1,
                           hospital=request.args.get('hospital',''),
                           desde=request.args.get('desde',''),
                           hasta=request.args.get('hasta','')) }}">
-        <i class="bi bi-chevron-left"></i>
-      </a>
+      <i class="bi bi-chevron-left"></i>
+    </a>
 
-      <!-- SIGUIENTE -->
-      <a class="btn btn-light border rounded-pill px-3 shadow-sm {% if page >= pages %}disabled{% endif %}"
-         href="{{ url_for('listar',
+    <!-- SIGUIENTE -->
+    <a class="btn btn-light border rounded-pill px-3 shadow-sm {% if page >= pages %}disabled{% endif %}" href="{{ url_for('listar',
                           page=page+1 if page<pages else pages,
                           hospital=request.args.get('hospital',''),
                           desde=request.args.get('desde',''),
                           hasta=request.args.get('hasta','')) }}">
-        <i class="bi bi-chevron-right"></i>
-      </a>
+      <i class="bi bi-chevron-right"></i>
+    </a>
 
-    </div>
-  </nav>
+  </div>
+</nav>
 
 {% endif %}
 
@@ -333,27 +326,20 @@
         <select name="hospital" class="form-select">
           <option value="">Todos</option>
           {% for h in HOSPITALES %}
-            <option value="{{ h.nombre }}"
-                    {% if request.args.get('hospital','') == h.nombre %}selected{% endif %}>
-              {{ h.nombre }}
-            </option>
+          <option value="{{ h.nombre }}" {% if request.args.get('hospital','')==h.nombre %}selected{% endif %}>
+            {{ h.nombre }}
+          </option>
           {% endfor %}
         </select>
       </div>
       {% endif %}
       <div>
         <label class="form-label">Desde</label>
-        <input type="date"
-               name="desde"
-               class="form-control"
-               value="{{ request.args.get('desde','') }}">
+        <input type="date" name="desde" class="form-control" value="{{ request.args.get('desde','') }}">
       </div>
       <div>
         <label class="form-label">Hasta</label>
-        <input type="date"
-               name="hasta"
-               class="form-control"
-               value="{{ request.args.get('hasta','') }}">
+        <input type="date" name="hasta" class="form-control" value="{{ request.args.get('hasta','') }}">
       </div>
       <div class="d-grid gap-2">
         <button class="btn btn-primary">

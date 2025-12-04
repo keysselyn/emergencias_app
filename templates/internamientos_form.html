@@ -29,6 +29,7 @@
                  name="fecha"
                  class="form-control"
                  value="{% if ir and ir.fecha %}{{ ir.fecha.strftime('%Y-%m-%d') }}{% else %}{{ hoy }}{% endif %}"
+                 {% if ir %}disabled{% endif %}
                  required>
         </div>
 

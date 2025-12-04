@@ -8,7 +8,8 @@
       <div class="card-body p-4">
 
         <div class="d-flex align-items-center mb-3">
-          <div class="me-3 bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width:55px;height:55px;">
+          <div class="me-3 bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center"
+            style="width:55px;height:55px;">
             <i class="bi bi-person-circle text-primary fs-2"></i>
           </div>
           <div>
@@ -19,14 +20,14 @@
 
         <!-- Mensajes Flash -->
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-              </div>
-            {% endfor %}
-          {% endif %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
 
         <form method="POST" class="vstack gap-3">
@@ -34,8 +35,7 @@
           <!-- Username -->
           <div>
             <label class="form-label">Nombre de usuario</label>
-            <input type="text" name="username" class="form-control" 
-                   value="{{ u.username }}" required>
+            <input type="text" name="username" class="form-control" value="{{ u.username }}" required>
           </div>
 
           <!-- Datos personales -->

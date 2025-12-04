@@ -272,3 +272,68 @@ def internamiento_before_insert(mapper, connection, target):
 @event.listens_for(Internamiento, "before_update")
 def internamiento_before_update(mapper, connection, target):
     target.fecha_actualizacion = datetime.utcnow()
+
+
+#===============================================================
+# Calendario de Guardias
+#==============================================================
+class GuardiaCalendarioMensual(db.Model):
+    __tablename__ = "guardias_calendario_mensual"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    hospital = db.Column(db.String(200), nullable=False, index=True)
+
+    medico_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    medico = db.relationship("User", foreign_keys=[medico_id])
+
+    anio = db.Column(db.Integer, nullable=False, index=True)
+    mes = db.Column(db.Integer, nullable=False, index=True)
+
+    # Días de guardia, separados por coma: "1, 7, 13, 22, 28"
+    dias = db.Column(db.String(200), nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "hospital", "medico_id", "anio", "mes",
+            name="uq_guardia_cal_mensual_medico_mes"
+        ),
+        {
+            "mysql_engine": "InnoDB",
+            "mysql_charset": "utf8mb4",
+            "mysql_collate": "utf8mb4_unicode_ci",
+        },
+    )
+
+    # Helpers cómodos
+
+    @property
+    def dias_list(self):
+        """
+        Devuelve los días como lista de enteros [1, 7, 13, ...]
+        """
+        if not self.dias:
+            return []
+        return [
+            int(x)
+            for x in self.dias.split(",")
+            if x.strip().isdigit()
+        ]
+
+    @dias_list.setter
+    def dias_list(self, lista_dias):
+        """
+        Asigna los días a partir de una lista de enteros [1, 7, 13, ...]
+        Los guarda ordenados y sin duplicados como "1, 7, 13".
+        """
+        if not lista_dias:
+            self.dias = ""
+            return
+
+        unicos = sorted(set(int(d) for d in lista_dias if int(d) > 0))
+        self.dias = ", ".join(str(d) for d in unicos)
+
+    def __repr__(self):
+        return f"<GuardiaCalendarioMensual {self.hospital} medico={self.medico_id} {self.mes:02d}/{self.anio} dias={self.dias}>"
