@@ -15,7 +15,7 @@ from datetime import datetime
 from sqlalchemy import inspect, text
 
 # OJO: NO importes Flask current_app aquí para evitar errores en import.
-from models import db, User, Hospital, EmergencyRecord, GuardiaEmergencia, Internamiento
+from models import db, User, Hospital, EmergencyRecord, GuardiaEmergencia, Internamiento,  GuardiaCalendarioMensual
 
 # ----------------------------
 # Seed de hospitales base
