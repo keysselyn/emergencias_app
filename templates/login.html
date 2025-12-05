@@ -1,17 +1,143 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="d-flex justify-content-center">
-  <form method="post" class="card p-3" style="max-width:420px; width:100%;">
-    <h5 class="mb-3"><i class="bi bi-shield-lock"></i> Ingresar</h5>
-    <div class="mb-3">
-      <label class="form-label">Usuario</label>
-      <input type="text" name="username" class="form-control" required autofocus>
+
+<style>
+
+  .login-container {
+    padding: 2rem 1rem;  /* permite scroll natural cuando hace falta */
+    display: flex;
+    justify-content: center;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+
+  .login-header {
+    padding: 1.5rem 1.5rem 1rem 1.5rem;
+    text-align: center;
+  }
+
+  .login-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
+    margin: 0 auto .8rem auto;
+    background: #eaf4ff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #0a5374;
+    font-size: 1.8rem;
+  }
+
+  .login-title {
+    font-weight: 700;
+    color: #0a5374;
+    margin-bottom: .2rem;
+  }
+
+  .login-subtitle {
+    color: #6b7280;
+    font-size: .85rem;
+  }
+
+  .login-body {
+    padding: 1.25rem 1.5rem 1.5rem 1.5rem;
+  }
+
+  .input-group-text {
+    background-color: #f3f4f6;
+    border-right: 0;
+  }
+
+  .form-control {
+    border-left: 0;
+  }
+
+  .btn-login {
+    width: 100%;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .login-footer-text {
+    font-size: .78rem;
+    color: #9ca3af;
+    margin-top: .75rem;
+  }
+
+</style>
+
+
+<div class="login-container">
+
+  <div class="login-card">
+
+    <div class="login-header">
+      <div class="login-icon">
+        <i class="bi bi-person-circle"></i>
+      </div>
+      <h5 class="login-title">Iniciar sesión</h5>
+      <div class="login-subtitle">Sistema de Guardias e Internamientos</div>
     </div>
-    <div class="mb-3">
-      <label class="form-label">Contraseña</label>
-      <input type="password" name="password" class="form-control" required>
+
+    <div class="login-body">
+
+      
+
+      <form method="post">
+        
+        <div class="mb-3">
+          <label class="form-label small text-muted">Usuario</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-person"></i></span>
+            <input type="text"
+                   name="username"
+                   class="form-control"
+                   placeholder="ej: j.mendez"
+                   required
+                   autofocus>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small text-muted">Contraseña</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input type="password"
+                   name="password"
+                   class="form-control"
+                   id="passwordField"
+                   placeholder="••••••••"
+                   required>
+            <button class="btn btn-outline-secondary"
+                    type="button"
+                    tabindex="-1"
+                    onclick="const f=document.getElementById('passwordField'); f.type = f.type === 'password' ? 'text' : 'password';">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-login my-2">Entrar</button>
+
+        <p class="text-center login-footer-text">
+          Acceso exclusivo del personal autorizado.
+        </p>
+
+      </form>
+
     </div>
-    <button class="btn btn-primary w-100">Entrar</button>
-  </form>
+
+  </div>
+
 </div>
+
 {% endblock %}

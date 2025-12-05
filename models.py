@@ -3,8 +3,29 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date
 from sqlalchemy import event
+import zoneinfo
+import os
 
 db = SQLAlchemy()
+
+# ==============================
+# ZONA HORARIA LOCAL
+# ==============================
+LOCAL_TZ = zoneinfo.ZoneInfo("America/Santo_Domingo")
+
+
+def now_local_naive() -> datetime:
+    """
+    Datetime local (Santo Domingo) sin tzinfo, para guardar en columnas DateTime naive.
+    """
+    return datetime.now(LOCAL_TZ).replace(tzinfo=None)
+
+
+def today_local() -> date:
+    """
+    Fecha actual (date) en Santo Domingo.
+    """
+    return datetime.now(LOCAL_TZ).date()
 
 
 # ======================================================
@@ -44,6 +65,9 @@ class User(UserMixin, db.Model):
         "mysql_collate": "utf8mb4_unicode_ci",
     }
 
+    # =========================
+    # Helpers de autenticación
+    # =========================
     def set_password(self, raw_password: str) -> None:
         self.password = generate_password_hash(raw_password)
 
@@ -51,7 +75,10 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password, raw_password)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"<User {self.username} admin={self.is_admin} hosp_admin={self.is_hospital_admin}>"
+        return (
+            f"<User {self.username} "
+            f"admin={self.is_admin} hosp_admin={self.is_hospital_admin}>"
+        )
 
 
 # ======================================================
@@ -64,7 +91,7 @@ class Hospital(db.Model):
     nombre = db.Column(db.String(191), unique=True, nullable=False, index=True)
     activo = db.Column(db.Boolean, default=True, nullable=False, index=True)
 
-    # guarda ruta relativa a static/img/
+    # Guarda ruta relativa (puede ser "logo.png" o "img/logo.png")
     logo_filename = db.Column(db.String(255), nullable=True)
 
     __table_args__ = {
@@ -76,18 +103,43 @@ class Hospital(db.Model):
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Hospital {self.nombre} activo={self.activo}>"
 
+    # =========================
+    # Helpers de logo
+    # =========================
+    def _normalized_logo_path(self) -> str | None:
+        """
+        Normaliza logo_filename para evitar 'img/img/archivo'.
+        - Si logo_filename ya trae 'img/' -> se usa como viene.
+        - Si solo trae 'archivo.png' -> se le antepone 'img/'.
+        """
+        if not self.logo_filename:
+            return None
+
+        path = self.logo_filename.replace("\\", "/")
+        # Ya viene con 'img/...'
+        if path.startswith("img/"):
+            return path
+        # Solo nombre de archivo
+        return f"img/{path}"
+
     def get_logo_url(self):
         from flask import url_for
-        if self.logo_filename:
-            return url_for("static", filename=f"img/{self.logo_filename}")
+
+        normalized = self._normalized_logo_path()
+        if normalized:
+            # normalized ya incluye 'img/...'
+            return url_for("static", filename=normalized)
+        # Logo por defecto
         return url_for("static", filename="img/logo_default.png")
 
     def get_logo_fs_path(self):
-        import os
         from flask import current_app
-        if not self.logo_filename:
+
+        normalized = self._normalized_logo_path()
+        if not normalized:
             return None
-        return os.path.join(current_app.static_folder, "img", self.logo_filename)
+        # normalized = "img/archivo.png"
+        return os.path.join(current_app.static_folder, normalized.replace("/", os.sep))
 
 
 # ======================================================
@@ -112,7 +164,9 @@ class EmergencyRecord(db.Model):
     eventualidades = db.Column(db.Text)
 
     # quién creó el registro
-    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
+    )
     created_by = db.relationship("User", backref="emergency_records", lazy=True)
 
     __table_args__ = (
@@ -177,7 +231,9 @@ class GuardiaEmergencia(db.Model):
     firma = db.Column(db.String(255), nullable=True)
 
     # Usuario que creó la guardia
-    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
+    )
     created_by = db.relationship("User", backref="guardias_creadas", lazy=True)
 
     __table_args__ = (
@@ -206,7 +262,7 @@ class Internamiento(db.Model):
         db.Integer,
         db.ForeignKey("guardias_emergencia.id"),
         nullable=True,
-        index=True
+        index=True,
     )
 
     # FECHA = FECHA DE INGRESO REAL
@@ -233,7 +289,9 @@ class Internamiento(db.Model):
     origen_ingreso = db.Column(db.String(150), nullable=True)
     observaciones = db.Column(db.Text, nullable=True)
 
-    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
+    )
     created_by = db.relationship("User", backref="internamientos_creados", lazy=True)
 
     guardia = db.relationship("GuardiaEmergencia", backref="internamientos", lazy=True)
@@ -251,11 +309,14 @@ class Internamiento(db.Model):
         return f"<Internamiento {self.fecha} {self.hospital} {self.nombre_paciente}>"
 
     @property
-    def dias_hospitalizado(self):
-        """Calcula días desde fecha ingreso real hasta hoy."""
+    def dias_hospitalizado(self) -> int:
+        """
+        Calcula los días desde la fecha de ingreso real (fecha)
+        hasta HOY (en hora local Santo Domingo).
+        """
         if not self.fecha:
             return 0
-        hoy = date.today()
+        hoy = today_local()
         diff = (hoy - self.fecha).days
         return diff + 1 if diff >= 0 else 0
 
@@ -265,18 +326,26 @@ class Internamiento(db.Model):
 # ==========================================================
 @event.listens_for(Internamiento, "before_insert")
 def internamiento_before_insert(mapper, connection, target):
-    if target.fecha and not target.fecha_actualizacion:
-        target.fecha_actualizacion = datetime.combine(target.fecha, datetime.min.time())
+    """
+    Al crear un internamiento, si no hay fecha_actualizacion,
+    se marca el momento actual (hora local S.D.) como última actualización.
+    """
+    if not target.fecha_actualizacion:
+        target.fecha_actualizacion = now_local_naive()
 
 
 @event.listens_for(Internamiento, "before_update")
 def internamiento_before_update(mapper, connection, target):
-    target.fecha_actualizacion = datetime.utcnow()
+    """
+    Cada vez que se actualiza un internamiento,
+    se refresca fecha_actualizacion a hora local S.D.
+    """
+    target.fecha_actualizacion = now_local_naive()
 
 
-#===============================================================
-# Calendario de Guardias
-#==============================================================
+# ===============================================================
+# Calendario de Guardias Mensual
+# ===============================================================
 class GuardiaCalendarioMensual(db.Model):
     __tablename__ = "guardias_calendario_mensual"
 
@@ -284,7 +353,9 @@ class GuardiaCalendarioMensual(db.Model):
 
     hospital = db.Column(db.String(200), nullable=False, index=True)
 
-    medico_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    medico_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=False, index=True
+    )
     medico = db.relationship("User", foreign_keys=[medico_id])
 
     anio = db.Column(db.Integer, nullable=False, index=True)
@@ -293,12 +364,15 @@ class GuardiaCalendarioMensual(db.Model):
     # Días de guardia, separados por coma: "1, 7, 13, 22, 28"
     dias = db.Column(db.String(200), nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=now_local_naive, nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint(
-            "hospital", "medico_id", "anio", "mes",
-            name="uq_guardia_cal_mensual_medico_mes"
+            "hospital",
+            "medico_id",
+            "anio",
+            "mes",
+            name="uq_guardia_cal_mensual_medico_mes",
         ),
         {
             "mysql_engine": "InnoDB",
@@ -307,8 +381,9 @@ class GuardiaCalendarioMensual(db.Model):
         },
     )
 
-    # Helpers cómodos
-
+    # =========================
+    # Helpers cómodos de días
+    # =========================
     @property
     def dias_list(self):
         """
@@ -316,11 +391,7 @@ class GuardiaCalendarioMensual(db.Model):
         """
         if not self.dias:
             return []
-        return [
-            int(x)
-            for x in self.dias.split(",")
-            if x.strip().isdigit()
-        ]
+        return [int(x) for x in self.dias.split(",") if x.strip().isdigit()]
 
     @dias_list.setter
     def dias_list(self, lista_dias):
@@ -332,8 +403,11 @@ class GuardiaCalendarioMensual(db.Model):
             self.dias = ""
             return
 
-        unicos = sorted(set(int(d) for d in lista_dias if int(d) > 0))
+        unicos = sorted({int(d) for d in lista_dias if int(d) > 0})
         self.dias = ", ".join(str(d) for d in unicos)
 
     def __repr__(self):
-        return f"<GuardiaCalendarioMensual {self.hospital} medico={self.medico_id} {self.mes:02d}/{self.anio} dias={self.dias}>"
+        return (
+            f"<GuardiaCalendarioMensual {self.hospital} medico={self.medico_id} "
+            f"{self.mes:02d}/{self.anio} dias={self.dias}>"
+        )

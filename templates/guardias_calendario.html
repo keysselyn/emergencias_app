@@ -25,53 +25,64 @@
 
         <!-- Selector mes / año -->
         <form class="row g-2 align-items-end mb-3" method="get" action="{{ url_for('guardias_calendario') }}">
-            <div class="col-6 col-md-3">
-                <label class="form-label small mb-1">Mes</label>
-                <select name="mes" class="form-select form-select-sm">
-                    {% for m in range(1,13) %}
-                    <option value="{{ m }}" {% if m==mes %}selected{% endif %}>
-                        {{ meses[m-1] }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label small mb-1">Año</label>
-                <select name="anio" class="form-select form-select-sm">
-                    {% for y in range(anio-1, anio+2) %}
-                    <option value="{{ y }}" {% if y==anio %}selected{% endif %}>
-                        {{ y }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-12 col-md-3 mt-2 mt-md-4 d-flex gap-2">
-                <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
-                    <i class="bi bi-arrow-clockwise me-1"></i> Cambiar mes
-                </button>
-            </div>
-            <div class="col-12 col-md-3 mt-2 mt-md-4 d-flex justify-content-md-end">
-                <!-- Botón para abrir modal de edición rápida por médico -->
-                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
-                    data-bs-target="#modalEdicionMedicos">
-                    <i class="bi bi-people me-1"></i>
-                    Edición rápida por médico
-                </button>
 
-            </div>
+  <!-- Mes -->
+  <div class="col-6 col-md-3">
+    <label class="form-label small mb-1 text-muted">Mes</label>
+    <select name="mes" class="form-select form-select-sm">
+      {% for m in range(1,13) %}
+      <option value="{{ m }}" {% if m==mes %}selected{% endif %}>
+        {{ meses[m-1] }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
 
-            <div class="col-12 col-md-3 mt-2 mt-md-4 d-flex justify-content-md-end">
-                <!-- Botón para abrir modal de edición rápida por médico -->
-                <a href="{{ url_for('guardias_calendario_pdf', anio=anio_guardias, mes=mes_guardias) }}"
-                    class="btn btn-sm btn-outline-danger" target="_blank">
-                    <i class="bi bi-file-earmark-pdf me-1"></i>
-                    PDF resumen de guardias
-                </a>
+  <!-- Año -->
+  <div class="col-6 col-md-3">
+    <label class="form-label small mb-1 text-muted">Año</label>
+    <select name="anio" class="form-select form-select-sm">
+      {% for y in range(anio-1, anio+2) %}
+      <option value="{{ y }}" {% if y==anio %}selected{% endif %}>
+        {{ y }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
 
-            </div>
+  <!-- Botones (manteniendo la idea original, pero más elegante) -->
+  <div class="col-12 col-md-6 mt-2 mt-md-4">
+    <div class="d-flex flex-wrap justify-content-md-end gap-2">
+
+      <!-- Cambiar mes -->
+      <button type="submit" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-clockwise me-1"></i>
+        <span class="d-none d-sm-inline">Actualizar mes</span>
+        <span class="d-inline d-sm-none">Actualizar</span>
+      </button>
+
+      <!-- Edición rápida por médico -->
+      <button type="button" class="btn btn-sm btn-outline-primary"
+              data-bs-toggle="modal" data-bs-target="#modalEdicionMedicos">
+        <i class="bi bi-people me-1"></i>
+        <span class="d-none d-sm-inline">Edición rápida</span>
+        <span class="d-inline d-sm-none">Médicos</span>
+      </button>
+
+      <!-- PDF resumen de guardias -->
+      <a href="{{ url_for('guardias_calendario_pdf', anio=anio_guardias, mes=mes_guardias) }}"
+         class="btn btn-sm btn-outline-danger" target="_blank">
+        <i class="bi bi-file-earmark-pdf me-1"></i>
+        <span class="d-none d-sm-inline">PDF resumen</span>
+        <span class="d-inline d-sm-none">PDF</span>
+      </a>
+
+    </div>
+  </div>
+
+</form>
 
 
-        </form>
 
         <!-- Resumen -->
         <p class="text-muted small mb-3">
@@ -309,61 +320,63 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
 
-                <div class="modal-body">
-                    <p class="text-muted small">
-                        Edita todos los días de guardia asignados a cada médico.
-                        Escribe los días separados por coma, ejemplo:
-                        <code>1, 7, 13, 22, 28</code>.
-                    </p>
+                <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
 
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width: 35%;">Médico</th>
-                                    <th style="width: 65%;">Días de guardia</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for medico in medicos %}
-                                {% set asign = asignaciones.get(medico.id) %}
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center me-2"
-                                                style="width:28px;height:28px;">
-                                                <span class="text-primary fw-semibold" style="font-size: .75rem;">
-                                                    {{ (medico.nombre or medico.username or '?')[0] }}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <div class="fw-semibold" style="font-size: .85rem;">
-                                                    {% if medico.nombre and medico.apellido %}
-                                                    {{ medico.nombre }} {{ medico.apellido }}
-                                                    {% elif medico.nombre %}
-                                                    {{ medico.nombre }}
-                                                    {% else %}
-                                                    {{ medico.username }}
-                                                    {% endif %}
-                                                </div>
-                                                <div class="text-muted small">
-                                                    {{ current_user.hospital }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <input type="text" class="form-control form-control-sm"
-                                            name="dias_{{ medico.id }}" placeholder="Ej.: 1, 7, 13, 22, 28"
-                                            value="{{ asign.dias if asign else '' }}">
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+    <p class="text-muted small">
+        Edita todos los días de guardia asignados a cada médico.
+        Escribe los días separados por coma, ejemplo:
+        <code>1, 7, 13, 22, 28</code>.
+    </p>
 
-                </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead class="table-light" style="position: sticky; top: 0; z-index: 2;">
+                <tr>
+                    <th style="width: 35%;">Médico</th>
+                    <th style="width: 65%;">Días de guardia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for medico in medicos %}
+                {% set asign = asignaciones.get(medico.id) %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center me-2"
+                                style="width:28px;height:28px;">
+                                <span class="text-primary fw-semibold" style="font-size: .75rem;">
+                                    {{ (medico.nombre or medico.username or '?')[0] }}
+                                </span>
+                            </div>
+                            <div>
+                                <div class="fw-semibold" style="font-size: .85rem;">
+                                    {% if medico.nombre and medico.apellido %}
+                                        {{ medico.nombre }} {{ medico.apellido }}
+                                    {% elif medico.nombre %}
+                                        {{ medico.nombre }}
+                                    {% else %}
+                                        {{ medico.username }}
+                                    {% endif %}
+                                </div>
+                                <div class="text-muted small">
+                                    {{ current_user.hospital }}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control form-control-sm"
+                               name="dias_{{ medico.id }}"
+                               value="{{ asign.dias if asign else '' }}">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
 
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
