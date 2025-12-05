@@ -2089,6 +2089,10 @@ def guardias_eliminar(g_id):
     return redirect(url_for("guardias_list"))
 
 
+
+# ======================================================================
+#   PDF de una guardia individual
+# ======================================================================
 @app.route("/guardias/<int:g_id>/pdf")
 @login_required
 def guardias_pdf(g_id):
@@ -2101,13 +2105,19 @@ def guardias_pdf(g_id):
         flash("No puedes ver guardias de otros hospitales.", "danger")
         return redirect(url_for("guardias_list"))
 
-    html = render_template("guardia_pdf.html", g=g, hosp=hosp, generated_at=now_local())
+    html = render_template(
+        "guardia_pdf.html",
+        g=g,
+        hosp=hosp,
+        generated_at=now_local(),
+    )
+
     filename = f"guardia_{g.hospital.replace(' ', '_')}_{g.fecha.isoformat()}.pdf"
     return render_pdf_from_html(html, pdf_filename=filename)
 
 
 # ======================================================================
-#   Trar Datos de la Guardia a Reporte Diario
+#   API: Traer datos de la guardia a Reporte Diario
 # ======================================================================
 @app.route("/api/guardia_por_dia", methods=["GET"])
 @login_required
@@ -2124,32 +2134,28 @@ def api_guardia_por_dia():
     if current_user.is_admin:
         hospital = (request.args.get("hospital") or "").strip()
         if not hospital:
-            return (
-                jsonify({"ok": False, "error": "Falta seleccionar el hospital."}),
-                400,
-            )
+            return jsonify({"ok": False, "error": "Falta seleccionar el hospital."}), 400
     else:
         hospital = current_user.hospital
 
     if not hospital:
-        return (
-            jsonify({"ok": False, "error": "El usuario no tiene hospital asignado."}),
-            400,
-        )
+        return jsonify(
+            {"ok": False, "error": "El usuario no tiene hospital asignado."}
+        ), 400
 
-    guardia = GuardiaEmergencia.query.filter_by(fecha=fecha, hospital=hospital).first()
+    guardia = GuardiaEmergencia.query.filter_by(
+        fecha=fecha,
+        hospital=hospital
+    ).first()
 
     if not guardia:
-        return (
-            jsonify(
-                {
-                    "ok": True,
-                    "found": False,
-                    "message": "No hay guardia registrada para esa fecha en este hospital.",
-                }
-            ),
-            200,
-        )
+        return jsonify(
+            {
+                "ok": True,
+                "found": False,
+                "message": "No hay guardia registrada para esa fecha en este hospital.",
+            }
+        ), 200
 
     total_pacientes = (
         (guardia.total_matutino or 0)
@@ -2817,13 +2823,13 @@ def guardar_guardias_medicos():
     flash("Programación de guardias por médico guardada.", "success")
     return redirect(url_for("guardias_calendario", anio=anio, mes=mes))
 
-
-#================================================================================
-# PDF GUARDIAS POR MÉDICO (días de guardia)
-#================================================================================
+# ======================================================================
+#   PDF GUARDIAS POR MÉDICO (días de guardia)
+# ======================================================================
 import calendar
 from flask import Response
 from models import GuardiaCalendarioMensual, User  # Hospital lo manejamos dentro con try/except
+
 
 @app.route("/guardias/calendario_pdf")
 @login_required
@@ -2839,24 +2845,28 @@ def guardias_calendario_pdf():
     # Año y mes
     try:
         anio = int(request.args.get("anio", hoy.year))
-    except ValueError:
+    except (TypeError, ValueError):
         anio = hoy.year
 
     try:
         mes = int(request.args.get("mes", hoy.month))
         if not (1 <= mes <= 12):
             mes = hoy.month
-    except ValueError:
+    except (TypeError, ValueError):
         mes = hoy.month
 
     # Hospital según scope / usuario
-    scope_hosp = user_hospital_scope()  # mismo helper que usas en dashboard
+    scope_hosp = user_hospital_scope()
     if scope_hosp:
         hospital = scope_hosp
     else:
         hospital = current_user.hospital
 
-    # Intentar obtener objeto Hospital para el logo (si existe el modelo)
+    if not hospital:
+        flash("No tienes hospital asignado para generar el calendario.", "danger")
+        return redirect(url_for("guardias_list"))
+
+    # Intentar obtener objeto Hospital para el logo
     hosp = None
     try:
         from models import Hospital
@@ -2896,15 +2906,21 @@ def guardias_calendario_pdf():
 
         dias_str = ", ".join(str(d) for d in dias_list_sorted)
 
-        medicos_rows.append({
-            "medico": m,
-            "dias_str": dias_str,
-            "total": total_guardias,
-        })
+        medicos_rows.append(
+            {
+                "medico": m,
+                "dias_str": dias_str,
+                "total": total_guardias,
+            }
+        )
 
     # Ordenar por el primer día de guardia
     def primer_dia(row):
-        dias = [int(x.strip()) for x in row["dias_str"].split(",") if x.strip().isdigit()]
+        dias = [
+            int(x.strip())
+            for x in row["dias_str"].split(",")
+            if x.strip().isdigit()
+        ]
         return min(dias) if dias else 999
 
     medicos_rows.sort(key=primer_dia)
@@ -2928,7 +2944,6 @@ def guardias_calendario_pdf():
     filename = f"guardias_calendario_{anio}{mes:02d}.pdf"
     response = render_pdf_from_html(html, pdf_filename=filename)
     return response
-
 
 # ======================================================================
 #   PWA: manifest / service worker / offline
