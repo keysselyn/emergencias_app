@@ -1827,18 +1827,33 @@ def guardias_list():
             yield cur
             cur += timedelta(days=1)
 
+    
     pendientes_por_hospital = {}
     total_pendientes = 0
 
+    # 👇 Nuevo: límite superior para faltantes = min(d_hasta, ayer)
+    ayer = hoy - timedelta(days=1)
+    if d_hasta:
+        fin_faltantes = min(d_hasta, ayer)
+    else:
+        fin_faltantes = ayer
+
     for hosp_name in hospitales_scope:
         fechas_con_guardia = {g.fecha for g in guardias if g.hospital == hosp_name}
-        faltantes = [
-            d for d in date_range(d_desde, d_hasta) if d not in fechas_con_guardia
-        ]
+
+        # 👇 Usamos fin_faltantes en vez de d_hasta
+        faltantes = []
+        if d_desde and fin_faltantes and d_desde <= fin_faltantes:
+            faltantes = [
+                d
+                for d in date_range(d_desde, fin_faltantes)
+                if d not in fechas_con_guardia
+            ]
 
         if faltantes:
             pendientes_por_hospital[hosp_name] = faltantes
             total_pendientes += len(faltantes)
+
 
     pendiente_count = 0
     pendiente_fechas = []
