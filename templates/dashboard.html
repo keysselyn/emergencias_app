@@ -7,55 +7,51 @@
 
     <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
 
-  <!-- Ícono + Títulos -->
-  <div class="d-flex align-items-center mb-2 mb-md-0">
+      <!-- Ícono + Títulos -->
+      <div class="d-flex align-items-center mb-2 mb-md-0">
 
-    <div class="me-3 rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-         style="width:48px; height:48px;">
-      <i class="bi bi-activity text-primary fs-3"></i>
+        <div class="me-3 rounded-3 bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+          style="width:48px; height:48px;">
+          <i class="bi bi-activity text-primary fs-3"></i>
+        </div>
+
+        <div>
+          <h5 class="card-title mb-0">Sistema de Guardias e Internamientos</h5>
+          <small class="text-muted">Red SRS Valdesia • Gestión Hospitalaria Integrada</small>
+        </div>
+
+      </div>
+
+      <!-- ACCIONES (PDF + Filtros) -->
+      <div class="d-flex flex-wrap gap-1">
+
+        <!-- Botón Filtros -->
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="offcanvas" data-bs-target="#dfilters">
+          <i class="bi bi-funnel"></i>
+          Filtros
+        </button>
+
+      </div>
+
     </div>
 
-    <div>
-      <h5 class="card-title mb-0">Sistema de Guardias e Internamientos</h5>
-      <small class="text-muted">Red SRS Valdesia • Gestión Hospitalaria Integrada</small>
-    </div>
-
-  </div>
-
-  <!-- ACCIONES (PDF + Filtros) -->
-  <div class="d-flex flex-wrap gap-1">
-
-    <!-- Botón Filtros -->
-    <button class="btn btn-outline-secondary btn-sm"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#dfilters">
-      <i class="bi bi-funnel"></i>
-      Filtros
-    </button>
-
-  </div>
-
-</div>
 
 
 
-    
 
     <p class="text-muted mb-0">
-      Bienvenido, <strong>{{ current_user.nombre or current_user.username }}</strong>.  
+      Bienvenido, <strong>{{ current_user.nombre or current_user.username }}</strong>.
       Desde aquí puedes gestionar las guardias médicas, internamientos y visualizar indicadores
       de tu hospital.
     </p>
 
     <!-- PWA (si aplica) -->
-    <button id="btnInstall"
-            class="btn btn-sm btn-outline-primary mt-3"
-            style="display:none;">
+    <button id="btnInstall" class="btn btn-sm btn-outline-primary mt-3" style="display:none;">
       <i class="bi bi-phone me-1"></i> Instalar app en este dispositivo
     </button>
 
 
-    
+
 
   </div>
 </div>
@@ -71,49 +67,49 @@
     </h6>
 
     {% if guardias_mes and guardias_mes|length > 0 %}
-      <p class="small text-muted mb-1">
-        Estás de guardia los siguientes días:
-      </p>
+    <p class="small text-muted mb-1">
+      Estás de guardia los siguientes días:
+    </p>
 
-      <div class="d-flex flex-wrap gap-2 mb-2">
-        {% for d in guardias_mes|sort %}
-          <span class="badge bg-primary-subtle text-primary px-3 py-2" style="border-radius: 12px;">
-            Día {{ d }}
-          </span>
-        {% endfor %}
-      </div>
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      {% for d in guardias_mes|sort %}
+      <span class="badge bg-primary-subtle text-primary px-3 py-2" style="border-radius: 12px;">
+        Día {{ d }}
+      </span>
+      {% endfor %}
+    </div>
 
-      {# Próxima guardia #}
-      {% if proxima_guardia_fecha %}
-        {% set meses_es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
-        <p class="small mb-2">
-          Tu próxima guardia es el
-          <strong>{{ proxima_guardia_fecha.day }} de {{ meses_es[proxima_guardia_fecha.month-1] }}</strong>
-          {% if proxima_guardia_dias == 0 %}
-            (<span class="text-success">es hoy</span>).
-          {% elif proxima_guardia_dias == 1 %}
-            (<span class="text-success">es mañana</span>).
-          {% elif proxima_guardia_dias > 1 %}
-            (en <strong>{{ proxima_guardia_dias }}</strong> días).
-          {% endif %}
-        </p>
-      {% else %}
-        <p class="small text-muted mb-2">
-          No tienes guardias pendientes para el resto de este mes.
-        </p>
+    {# Próxima guardia #}
+    {% if proxima_guardia_fecha %}
+    {% set meses_es =
+    ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+    %}
+    <p class="small mb-2">
+      Tu próxima guardia es el
+      <strong>{{ proxima_guardia_fecha.day }} de {{ meses_es[proxima_guardia_fecha.month-1] }}</strong>
+      {% if proxima_guardia_dias == 0 %}
+      (<span class="text-success">es hoy</span>).
+      {% elif proxima_guardia_dias == 1 %}
+      (<span class="text-success">es mañana</span>).
+      {% elif proxima_guardia_dias > 1 %}
+      (en <strong>{{ proxima_guardia_dias }}</strong> días).
       {% endif %}
+    </p>
+    {% else %}
+    <p class="small text-muted mb-2">
+      No tienes guardias pendientes para el resto de este mes.
+    </p>
+    {% endif %}
 
     {% else %}
-      <p class="text-muted small mb-2">
-        No tienes guardias asignadas este mes.
-      </p>
+    <p class="text-muted small mb-2">
+      No tienes guardias asignadas este mes.
+    </p>
     {% endif %}
 
     <!-- Botón que abre el modal con el calendario completo (solo vista) -->
-    <button type="button"
-            class="btn btn-sm btn-outline-primary"
-            data-bs-toggle="modal"
-            data-bs-target="#modalCalendarioGuardias">
+    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+      data-bs-target="#modalCalendarioGuardias">
       <i class="bi bi-calendar-week me-1"></i>
       Ver calendario completo
     </button>
@@ -125,62 +121,89 @@
 
 
 {% if current_user.is_admin or current_user.is_hospital_admin %}
-<!-- ZONA ADMIN -->
-<div class="card shadow-sm border-0 mb-4">
+<!-- SECCIÓN ADMIN -->
+<div class="card shadow-sm border-0 mb-4" style="border-left: 4px solid var(--bs-primary);">
   <div class="card-body">
 
-    <div class="d-flex align-items-center mb-2">
-      <span class="badge bg-dark-subtle text-dark me-2">
-        <i class="bi bi-shield-lock me-1"></i> Administrador
-      </span>
-      <h6 class="mb-0">Gestión administrativa</h6>
+    <!-- Header -->
+    <div class="d-flex align-items-center mb-3">
+      <div class="me-3 d-flex align-items-center justify-content-center bg-primary bg-opacity-10 rounded-3"
+        style="width:48px; height:48px;">
+        <i class="bi bi-shield-lock-fill text-primary fs-3"></i>
+      </div>
+
+      <div>
+        <h5 class="mb-0 fw-semibold">Panel Administrativo</h5>
+        <small class="text-muted">
+          Gestión integral del sistema • Hospitalario / Emergencias
+        </small>
+      </div>
     </div>
 
-    <p class="small text-muted mb-3">
-      Administra usuarios, hospitales y distribución de guardias. También puedes exportar los registros
-      de emergencias.
+    <p class="small text-muted">
+      Accede a herramientas avanzadas para administrar usuarios, hospitales, distribución de guardias
+      y exportación de datos clínicos. Optimiza la operación hospitalaria con controles rápidos y seguros.
     </p>
 
-    <div class="d-flex flex-wrap gap-2 mb-2">
-      <a href="{{ url_for('listar') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-hospital me-1"></i> Registro
+    <!-- Acciones principales -->
+    <div class="d-flex flex-wrap gap-2 mt-3">
+
+      <!-- Registro -->
+      <a href="{{ url_for('listar') }}" class="btn btn-sm btn-outline-primary d-flex align-items-center">
+        <i class="bi bi-clipboard-data me-2"></i>
+        Registro general
       </a>
 
+      <!-- Hospitales: Solo Admin general -->
       {% if current_user.is_admin %}
-      <a href="{{ url_for('hospitales_list') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-hospital me-1"></i> Hospitales
+      <a href="{{ url_for('hospitales_list') }}" class="btn btn-sm btn-outline-primary d-flex align-items-center">
+        <i class="bi bi-hospital me-2"></i>
+        Hospitales
       </a>
       {% endif %}
 
-      <a href="{{ url_for('usuarios_list') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-people me-1"></i> Usuarios
+      <!-- Usuarios -->
+      <a href="{{ url_for('usuarios_list') }}" class="btn btn-sm btn-outline-primary d-flex align-items-center">
+        <i class="bi bi-people-fill me-2"></i>
+        Usuarios
       </a>
 
-      <a href="{{ url_for('guardias_calendario') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-calendar3 me-1"></i> Distribución de guardias
+      <!-- Guardias -->
+      <a href="{{ url_for('guardias_calendario') }}" class="btn btn-sm btn-outline-primary d-flex align-items-center">
+        <i class="bi bi-calendar3 me-2"></i>
+        Distribución de guardias
       </a>
+
     </div>
 
-    <!-- Exportaciones, solo admin / admin hospital -->
-    <div class="d-flex flex-wrap gap-2 mt-1">
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('exportar_excel') }}">
-        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel (registros de emergencias)
+    <hr class="my-3">
+
+    <!-- Exportaciones -->
+    <h6 class="fw-semibold mb-2">
+      <i class="bi bi-download text-primary me-1"></i>
+      Exportación de datos
+    </h6>
+
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-success d-flex align-items-center" href="{{ url_for('exportar_excel') }}">
+        <i class="bi bi-file-earmark-excel-fill me-2"></i> Excel (Emergencias)
       </a>
-      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('exportar_csv') }}">
-        <i class="bi bi-filetype-csv me-1"></i> Exportar CSV
+
+      <a class="btn btn-sm btn-outline-secondary d-flex align-items-center" href="{{ url_for('exportar_csv') }}">
+        <i class="bi bi-filetype-csv me-2"></i> CSV
       </a>
-      <!-- Botón PDF -->
-    <a href="{{ url_for('emergencias_resumen_pdf', desde=f_desde, hasta=f_hasta) }}"
-       class="btn btn-outline-primary btn-sm"
-       target="_blank">
-      <i class="bi bi-file-earmark-pdf"></i>
-      PDF Mensual
-    </a>
+      {% if current_user.is_admin %}
+      <a href="{{ url_for('emergencias_resumen_pdf', desde=f_desde, hasta=f_hasta) }}"
+        class="btn btn-sm btn-outline-danger d-flex align-items-center" target="_blank">
+        <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF Mensual
+      </a>
+      {% endif %}
     </div>
 
   </div>
 </div>
 {% endif %}
+
 
 
 
@@ -632,8 +655,10 @@
       <div class="modal-header py-2">
         <h5 class="modal-title d-flex align-items-center">
           <i class="bi bi-calendar3 me-2"></i>
-          Calendario de guardias — 
-          {% set meses_es = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] %}
+          Calendario de guardias —
+          {% set meses_es =
+          ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+          %}
           {{ meses_es[mes_guardias-1] }} {{ anio_guardias }}
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -659,16 +684,15 @@
               {% for semana in semanas_cal %}
               <tr>
                 {% for celda in semana %}
-                  {% if celda is none %}
-                    <td class="p-1 day-box empty"></td>
-                  {% else %}
-                    {% set colores = [] %}
-                    {% for m in celda.medicos %}
-                      {% set _ = colores.append(color_map_cal[m.id]) %}
-                    {% endfor %}
+                {% if celda is none %}
+                <td class="p-1 day-box empty"></td>
+                {% else %}
+                {% set colores = [] %}
+                {% for m in celda.medicos %}
+                {% set _ = colores.append(color_map_cal[m.id]) %}
+                {% endfor %}
 
-                    <td class="p-1 day-box"
-                        style="
+                <td class="p-1 day-box" style="
                           background:
                             {% if colores|length == 1 %}
                               {{ colores[0] }}
@@ -682,11 +706,11 @@
                             {% endif %};
                           color: white;
                         ">
-                      <div class="fw-bold small">
-                        {{ celda.fecha.day }}
-                      </div>
-                    </td>
-                  {% endif %}
+                  <div class="fw-bold small">
+                    {{ celda.fecha.day }}
+                  </div>
+                </td>
+                {% endif %}
                 {% endfor %}
               </tr>
               {% endfor %}
@@ -704,22 +728,22 @@
 
             <div class="legend-grid">
               {% for m in medicos_cal %}
-                {% set count = guardias_por_medico_cal.get(m.id, 0) %}
-                {% if count > 0 %}
-                  <div class="legend-item">
-                    <span class="legend-dot" style="background: {{ color_map_cal[m.id] }};"></span>
-                    {% if m.nombre and m.apellido %}
-                      {{ m.nombre }} {{ m.apellido }}
-                    {% elif m.nombre %}
-                      {{ m.nombre }}
-                    {% else %}
-                      {{ m.username }}
-                    {% endif %}
-                    <span class="text-muted ms-1">
-                      — {{ count }} día{{ '' if count == 1 else 's' }}
-                    </span>
-                  </div>
+              {% set count = guardias_por_medico_cal.get(m.id, 0) %}
+              {% if count > 0 %}
+              <div class="legend-item">
+                <span class="legend-dot" style="background: {{ color_map_cal[m.id] }};"></span>
+                {% if m.nombre and m.apellido %}
+                {{ m.nombre }} {{ m.apellido }}
+                {% elif m.nombre %}
+                {{ m.nombre }}
+                {% else %}
+                {{ m.username }}
                 {% endif %}
+                <span class="text-muted ms-1">
+                  — {{ count }} día{{ '' if count == 1 else 's' }}
+                </span>
+              </div>
+              {% endif %}
               {% endfor %}
             </div>
 
