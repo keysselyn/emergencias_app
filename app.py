@@ -22,6 +22,12 @@ from flask_login import (
     login_required,
 )
 
+from sync_emergencias import (
+    sync_record_desde_guardia,
+    quitar_record_de_guardia,
+    backfill,
+)
+
 from datetime import datetime, date, timedelta
 import zoneinfo
 
@@ -302,6 +308,17 @@ def admin_bootstrap():
     except Exception as e:
         return f"Error: {e}", 500
 
+
+
+@app.route("/admin/sync_emergencias")
+@login_required
+@admin_required
+def admin_sync_emergencias():
+    overwrite = request.args.get("overwrite") == "1"
+    creados, actualizados = backfill(overwrite=overwrite)
+    db.session.commit()
+    flash(f"Sincronizado: {creados} creados, {actualizados} actualizados.", "success")
+    return redirect(url_for("listar"))
 
 # ==============================
 # HEALTHCHECK
@@ -1936,6 +1953,7 @@ def guardias_nuevo():
             )
 
             db.session.add(g)
+            sync_record_desde_guardia(g)
             db.session.commit()
             flash("Guardia creada correctamente.", "success")
             return redirect(url_for("guardias_list"))
@@ -1986,6 +2004,15 @@ def guardias_editar(g_id):
                 except Exception:
                     return current
 
+            old_key = (g.fecha, g.hospital)  # va ANTES de asignar g.fecha
+            g.fecha = nueva_fecha
+            g.hospital = hospital_nombre
+            # ... resto de asignaciones ...
+            g.firma = (request.form.get("firma") or "").strip()
+
+            sync_record_desde_guardia(g, old_key=old_key)
+            db.session.commit()
+
             g.fecha = nueva_fecha
             g.hospital = hospital_nombre
             g.medicos_emergencia = (
@@ -2030,6 +2057,7 @@ def guardias_eliminar(g_id):
         flash("No puedes eliminar guardias de otros hospitales.", "danger")
         return redirect(url_for("guardias_list"))
 
+    quitar_record_de_guardia(g)
     db.session.delete(g)
     db.session.commit()
     flash("Guardia eliminada correctamente.", "success")

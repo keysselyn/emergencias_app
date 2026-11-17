@@ -15,7 +15,7 @@ NOMBRES = [
     "Hospital Municipal de Yaguate",
     "Hospital Municipal Villa Altagracia",
     "Hospital Nustra Señora de Altagracia",
-    "Hospital Municipal Dr.Guarionex ALcantara",
+    "Hospital Municipal Dr.Guarionex Alcantara",
     "Hospital Provincial San José de Ocoa",
     "Hospital Municipal los Cacaos",
 ]

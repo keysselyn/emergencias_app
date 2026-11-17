@@ -6,17 +6,13 @@
   <div class="card shadow-sm border-0 rounded-4">
     <div class="card-header bg-primary text-white rounded-top-4">
       <h5 class="mb-0">
-        {% if h %}
-          Editar hospital
-        {% else %}
-          Nuevo hospital
-        {% endif %}
+        {% if h %}Editar hospital{% else %}Nuevo hospital{% endif %}
       </h5>
     </div>
+
     <div class="card-body">
-      <!-- OJO: enctype para subir archivos -->
       <form method="POST" enctype="multipart/form-data" class="row g-3">
-        
+
         <!-- Nombre -->
         <div class="col-12">
           <label class="form-label fw-semibold">Nombre del hospital</label>
@@ -27,57 +23,40 @@
                  required>
         </div>
 
-        <!-- Activo (solo en edición) -->
-        {% if h %}
+        <!-- Estado (compatible con backend actual: activo = "1"/"0") -->
         <div class="col-12">
-          <div class="form-check form-switch">
-            <input class="form-check-input"
-                   type="checkbox"
-                   name="activo"
-                   id="activo"
-                   {% if h.activo %}checked{% endif %}>
-            <label class="form-check-label" for="activo">
-              Hospital activo
-            </label>
-          </div>
+          <label class="form-label fw-semibold">Estado</label>
+          <select name="activo" class="form-select">
+            <option value="1" {% if not h or h.activo %}selected{% endif %}>Activo</option>
+            <option value="0" {% if h and not h.activo %}selected{% endif %}>Inactivo</option>
+          </select>
         </div>
-        {% endif %}
 
         <!-- Logo -->
         <div class="col-12">
-          <label class="form-label fw-semibold">
-            Logo del hospital
-          </label>
+          <label class="form-label fw-semibold">Logo del hospital</label>
           <input type="file"
-                 name="logo_file"
+                 name="logo"
                  class="form-control"
                  accept="image/*">
           <div class="form-text">
-            Se recomienda usar archivos PNG, JPG o JPEG. El logo se guardará en <code>static/img/logos/</code>.
+            Recomendado: PNG, JPG o JPEG. El archivo se guarda en <code>static/img/</code>.
           </div>
 
           {% if h and h.logo_filename %}
             <div class="mt-3">
               <small class="text-muted d-block mb-1">Logo actual:</small>
-              <img src="{{ url_for('static', filename=h.logo_filename) }}"
+              <img src="{{ url_for('static', filename='img/' ~ h.logo_filename) }}"
                    alt="Logo hospital"
-                   style="max-height:70px;">
-              <div class="form-check mt-2">
-                <input class="form-check-input"
-                       type="checkbox"
-                       name="borrar_logo"
-                       id="borrar_logo">
-                <label class="form-check-label small" for="borrar_logo">
-                  Quitar logo actual
-                </label>
-              </div>
+                   style="max-height:70px;"
+                   class="border rounded-3 p-1 bg-white">
             </div>
           {% endif %}
         </div>
 
         <!-- Botones -->
         <div class="col-12 d-flex justify-content-between mt-2">
-          <a href="{{ url_for('hospitales_list') }}" class="btn btn-outline-secondary">
+          <a href="{{ url_for('hospitales.list_hosp') }}" class="btn btn-outline-secondary">
             Volver
           </a>
           <button type="submit" class="btn btn-primary">
